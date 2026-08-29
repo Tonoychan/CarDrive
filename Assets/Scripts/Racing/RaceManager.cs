@@ -24,6 +24,8 @@ namespace Racing
             public Vehicle vehicle;
             public Rigidbody rigidbody;
             public SimpleAIPathFollower aiFollower;
+            public Vector3 gridPosition;
+            public Quaternion gridRotation;
             public bool isPlayer;
             public bool finished;
             public float finishTime;
@@ -70,7 +72,15 @@ namespace Racing
                     rb.angularVelocity = Vector3.zero;
                     rb.isKinematic = true;
                 }
-                participants.Add(new RaceParticipant { vehicle = player, rigidbody = rb, isPlayer = true });
+                player.enabled = false;
+                participants.Add(new RaceParticipant
+                {
+                    vehicle = player,
+                    rigidbody = rb,
+                    isPlayer = true,
+                    gridPosition = slots[0].position,
+                    gridRotation = slots[0].rotation
+                });
             }
 
             var def = activeCourse.definition;
@@ -106,8 +116,17 @@ namespace Racing
 
                 var aiRb = go.GetComponent<Rigidbody>();
                 if (aiRb != null) aiRb.isKinematic = true;
+                vehicle.enabled = false;
 
-                participants.Add(new RaceParticipant { vehicle = vehicle, rigidbody = aiRb, aiFollower = follower, isPlayer = false });
+                participants.Add(new RaceParticipant
+                {
+                    vehicle = vehicle,
+                    rigidbody = aiRb,
+                    aiFollower = follower,
+                    isPlayer = false,
+                    gridPosition = slot.position,
+                    gridRotation = slot.rotation
+                });
             }
         }
 
@@ -146,6 +165,21 @@ namespace Racing
 
         void TickCountdown()
         {
+            // Belt-and-suspenders hold: force every car back to its grid pose every
+            // frame, regardless of what might be nudging it (kinematic Rigidbody +
+            // disabled Vehicle component should already prevent movement, but this
+            // guarantees it even if something else writes to the transform directly).
+            foreach (var p in participants)
+            {
+                if (p.vehicle == null) continue;
+                p.vehicle.transform.SetPositionAndRotation(p.gridPosition, p.gridRotation);
+                if (p.rigidbody != null)
+                {
+                    p.rigidbody.linearVelocity = Vector3.zero;
+                    p.rigidbody.angularVelocity = Vector3.zero;
+                }
+            }
+
             countdownRemaining -= Time.deltaTime;
             RaceEvents.RaiseCountdownTick(Mathf.Max(0f, countdownRemaining));
             if (countdownRemaining <= 0f)
@@ -153,6 +187,7 @@ namespace Racing
                 State = RaceState.Racing;
                 foreach (var p in participants)
                 {
+                    if (p.vehicle != null) p.vehicle.enabled = true;
                     if (p.rigidbody != null) p.rigidbody.isKinematic = false;
                     if (p.aiFollower != null) p.aiFollower.canDrive = true;
                 }
@@ -227,7 +262,14 @@ namespace Racing
             foreach (var p in participants)
             {
                 if (!p.isPlayer && p.vehicle != null)
+                {
                     Destroy(p.vehicle.gameObject);
+                }
+                else if (p.isPlayer && p.vehicle != null)
+                {
+                    p.vehicle.enabled = true;
+                    if (p.rigidbody != null) p.rigidbody.isKinematic = false;
+                }
             }
             participants.Clear();
             activeCourse = null;

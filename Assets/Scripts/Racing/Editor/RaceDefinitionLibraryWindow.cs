@@ -33,6 +33,8 @@ namespace Racing.EditorTools
                 EditorGUILayout.LabelField($"opp:{def.opponentCount} presets:{(def.opponentPresets?.Length ?? 0)}", GUILayout.Width(140));
                 if (GUILayout.Button("Ping", GUILayout.Width(45)))
                     EditorGUIUtility.PingObject(def);
+                if (GUILayout.Button("Delete", GUILayout.Width(55)))
+                    DeleteAssetWithConfirm(def);
                 EditorGUILayout.EndHorizontal();
             }
             EditorGUILayout.EndScrollView();
@@ -50,6 +52,8 @@ namespace Racing.EditorTools
                 EditorGUILayout.LabelField(preset.displayName, GUILayout.Width(140));
                 if (GUILayout.Button("Ping", GUILayout.Width(45)))
                     EditorGUIUtility.PingObject(preset);
+                if (GUILayout.Button("Delete", GUILayout.Width(55)))
+                    DeleteAssetWithConfirm(preset);
                 EditorGUILayout.EndHorizontal();
             }
             EditorGUILayout.EndScrollView();
@@ -63,6 +67,20 @@ namespace Racing.EditorTools
                 .Select(AssetDatabase.LoadAssetAtPath<T>)
                 .Where(a => a != null)
                 .ToArray();
+        }
+
+        static void DeleteAssetWithConfirm(Object asset)
+        {
+            string path = AssetDatabase.GetAssetPath(asset);
+            bool confirmed = EditorUtility.DisplayDialog(
+                "Delete Asset",
+                $"Delete '{asset.name}'?\n\n{path}\n\nThis cannot be undone.",
+                "Delete",
+                "Cancel");
+            if (!confirmed) return;
+
+            AssetDatabase.DeleteAsset(path);
+            AssetDatabase.Refresh();
         }
 
         static void CreateAsset<T>(string folder, string defaultName) where T : ScriptableObject
