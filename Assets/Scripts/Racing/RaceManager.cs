@@ -22,6 +22,7 @@ namespace Racing
         class RaceParticipant
         {
             public Vehicle vehicle;
+            public Rigidbody rigidbody;
             public SimpleAIPathFollower aiFollower;
             public bool isPlayer;
             public bool finished;
@@ -67,8 +68,9 @@ namespace Racing
                 {
                     rb.linearVelocity = Vector3.zero;
                     rb.angularVelocity = Vector3.zero;
+                    rb.isKinematic = true;
                 }
-                participants.Add(new RaceParticipant { vehicle = player, isPlayer = true });
+                participants.Add(new RaceParticipant { vehicle = player, rigidbody = rb, isPlayer = true });
             }
 
             var def = activeCourse.definition;
@@ -102,7 +104,10 @@ namespace Racing
                 follower.followMinimumGap = preset.followMinimumGap;
                 follower.canDrive = false;
 
-                participants.Add(new RaceParticipant { vehicle = vehicle, aiFollower = follower, isPlayer = false });
+                var aiRb = go.GetComponent<Rigidbody>();
+                if (aiRb != null) aiRb.isKinematic = true;
+
+                participants.Add(new RaceParticipant { vehicle = vehicle, rigidbody = aiRb, aiFollower = follower, isPlayer = false });
             }
         }
 
@@ -148,6 +153,7 @@ namespace Racing
                 State = RaceState.Racing;
                 foreach (var p in participants)
                 {
+                    if (p.rigidbody != null) p.rigidbody.isKinematic = false;
                     if (p.aiFollower != null) p.aiFollower.canDrive = true;
                 }
                 RaceEvents.RaiseRaceStarted();
