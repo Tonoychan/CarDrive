@@ -143,10 +143,18 @@ using `SimpleAIPathFollower` for opponents (see Pro/Community note above).
   time only advances while the Editor window has focus/is being interacted with. Keep the
   Editor focused during Play mode testing.
 
-### Phase 5 — Race UI — CODE DONE, NOT VISUALLY TESTED
+### Phase 5 — Race UI — WIRED, PENDING VISUAL CONFIRMATION
 `RaceUIController` (`Assets/Scripts/Racing/UI/`) subscribes to `RaceEvents` and drives
-countdown/position/results `TMP_Text` fields + panel visibility. Not yet wired to actual
-Canvas UI elements in a scene, so it has never actually rendered anything on screen.
+countdown/position/results `TMP_Text` fields + panel visibility. Now wired to a real
+`RaceHUD` hierarchy under `_GameController/Canvas` (`CountdownPanel`, `HUDPanel`,
+`ResultsPanel`), matching the existing SpeedMeter's TMP font for visual consistency.
+**Confirmed via script** that `BeginRace()` correctly activates `CountdownPanel` and
+updates its text to `"3"` through the real `RaceEvents` pipeline (component state,
+`RectTransform` centering, and text content all verified programmatically). **Not yet
+visually confirmed on screen** — this session's Play Mode kept restarting/stalling
+mid-test (see the recurring Editor-stability note elsewhere in this doc). Do one direct
+Play-mode pass, watching the Game view continuously, to confirm the countdown/position/
+results actually render and look right.
 
 ### Phase 6 — AI traffic tuning — READY TO START
 The blocker (no real track) is resolved — `RaceCourse_CitySprint` has a working, tested

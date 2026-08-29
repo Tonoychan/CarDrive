@@ -149,16 +149,17 @@ This is where you replace MVC Pro's Bezier tool with plain Transform editing:
 Ranked roughly by effort-to-value. Each entry says what exists, what's missing, and a
 concrete starting point.
 
-### 4.1 Wire the HUD to real Canvas elements (small, high value)
-`RaceUIController` (`Assets/Scripts/Racing/UI/RaceUIController.cs`) is fully functional
-code with zero UI to point at. To finish Phase 5:
-1. Under `_GameController/Canvas` (or a new child), add a `TMP_Text` for the countdown
-   number, one for race position (`"3rd / 6"` style), and a results panel with its own
-   `TMP_Text` for the final standings list.
-2. Add a `Race UI Controller` component (anywhere persistent, e.g. `_GameController`),
-   drag the Text/panel references into its fields.
-3. Press Play, call `BeginRace`, and the countdown/position/results should now actually
-   render — the event wiring (`RaceEvents`) is already correct, this is pure UI hookup.
+### 4.1 HUD wiring — DONE, needs one visual confirmation pass
+`RaceHUD` now exists under `_GameController/Canvas` (`CountdownPanel`/`CountdownText`,
+`HUDPanel`/`PositionText`, `ResultsPanel`/`ResultsText` + a translucent background),
+matching the existing SpeedMeter's TMP font. `RaceUIController` on `_GameController` has
+all references wired. Confirmed programmatically that `BeginRace()` correctly flips
+`CountdownPanel` active and updates its text via `RaceEvents`. **What's left**: a human
+Play-mode pass, watching the Game view the whole time, to eyeball that the countdown/
+position/results actually look right (font size, layout, readability against the 3D
+scene) — automated verification kept getting interrupted by this session's Play Mode
+instability (see §5). If it doesn't look right, the pieces to adjust are plain
+`RectTransform`/`TextMeshProUGUI` settings on `RaceHUD`'s children — no code changes.
 
 ### 4.2 Place a real trigger + wire the prompt (small, closes Phase 3)
 1. Create a trigger volume GameObject (Box Collider, `Is Trigger` on) somewhere in the
