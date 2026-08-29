@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
-using MVC.AI;
+using Racing.AI;
 
 namespace Racing
 {
@@ -18,18 +18,18 @@ namespace Racing
 
         [Header("Paths")]
         [Tooltip("Main racing line, used for progress/position tracking.")]
-        public VehicleAIPath mainPath;
+        public SimpleAIPath mainPath;
         [Tooltip("Optional alternate lines so AI can pass instead of forming a single-file line.")]
-        public VehicleAIPath[] alternatePaths;
+        public SimpleAIPath[] alternatePaths;
 
         [Header("Wrong-way detection")]
         [Range(-1f, 1f)] public float wrongWayDotThreshold = -0.3f;
 
-        public IReadOnlyList<VehicleAIPath> AllPaths
+        public IReadOnlyList<SimpleAIPath> AllPaths
         {
             get
             {
-                var list = new List<VehicleAIPath>();
+                var list = new List<SimpleAIPath>();
                 if (mainPath != null) list.Add(mainPath);
                 if (alternatePaths != null) list.AddRange(alternatePaths);
                 return list;

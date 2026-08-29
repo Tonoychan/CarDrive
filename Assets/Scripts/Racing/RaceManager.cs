@@ -3,7 +3,7 @@ using System.Linq;
 using UnityEngine;
 using MVC;
 using MVC.Core;
-using MVC.AI;
+using Racing.AI;
 
 namespace Racing
 {
@@ -22,7 +22,7 @@ namespace Racing
         class RaceParticipant
         {
             public Vehicle vehicle;
-            public VehicleAIPathFollower aiFollower;
+            public SimpleAIPathFollower aiFollower;
             public bool isPlayer;
             public bool finished;
             public float finishTime;
@@ -93,8 +93,8 @@ namespace Racing
 
                 ApplyEnginePreset(vehicle, preset);
 
-                var follower = go.GetComponent<VehicleAIPathFollower>();
-                if (follower == null) follower = go.AddComponent<VehicleAIPathFollower>();
+                var follower = go.GetComponent<SimpleAIPathFollower>();
+                if (follower == null) follower = go.AddComponent<SimpleAIPathFollower>();
                 follower.path = ChoosePathForOpponent(i);
                 follower.trafficPolicy = preset.trafficPolicy;
                 follower.targetSpeedMultiplier = preset.targetSpeedMultiplier;
@@ -105,7 +105,7 @@ namespace Racing
             }
         }
 
-        VehicleAIPath ChoosePathForOpponent(int opponentIndex)
+        SimpleAIPath ChoosePathForOpponent(int opponentIndex)
         {
             var all = activeCourse.AllPaths;
             if (all.Count == 0) return null;
@@ -157,7 +157,7 @@ namespace Racing
             foreach (var p in participants)
             {
                 if (p.finished || p.vehicle == null) continue;
-                p.progressIndex = path.ClosestSpacedPointIndex(p.vehicle.transform.position);
+                p.progressIndex = path.ClosestPointIndex(p.vehicle.transform.position);
             }
 
             var ordered = participants

@@ -57,110 +57,134 @@ Reasoning:
     vs. mobile preset instead of both existing side-by-side) is Phase 5 polish, not done
     here.
 
-### Phase 1 — Data model (ScriptableObjects) — CODE DONE (2026-08-29)
-Implemented as `Assets/Scripts/Racing/`:
+### ⚠️ MVC Pro vs Community — read this before touching AI code
+
+MVC's real AI Path / Path Follower system (`MVC.AI.VehicleAIPath`,
+`VehicleAIPathFollower`) is a **Pro-only feature**, confirmed directly in MVC's own
+`Documentation.html` (`<span class="docs-badge pro">Pro</span>` on the "AI paths and path
+followers" section: *"using MVC Pro AI control"*). This project only has the installed
+**Community** package (`Packages/dev.bxbstudio.mvc.community`). Every attempt to author a
+`VehicleAIPath` via script — `AddNextCurve()`, forcing `Awake()` via reflection, using
+MVC's own official `VehicleAIPathEditor.CreateNewPath()` creation method, even running in
+Play Mode — silently returned `false`/no-op with zero exceptions or warnings. That's a
+deliberate license gate, not a scripting limitation. Further reflection also confirmed
+`Vehicle.Inputs.Fuel/Brake/Direction/etc.` have **public getters but non-public setters**
+— MVC does not expose a way to drive a vehicle's throttle/brake/steering from outside
+code in Community tier either (only its own internal, Pro-gated systems can).
+
+**Resolution (2026-08-29):** built a from-scratch, license-free AI system —
+`Racing.AI.SimpleAIPath` / `SimpleAIPathFollower` (`Assets/Scripts/Racing/AI/`) — that
+deliberately mirrors MVC's naming (`path`, `followDirection`, `targetSpeedMultiplier`,
+`trafficPolicy`, `followTimeGap`, `followMinimumGap`) so it reads the same way and is a
+straightforward swap-out if this project ever gets MVC Pro. It drives the car via direct
+`Rigidbody` force (propulsion) and a damped yaw-rate (steering) — **not** through MVC's
+engine/wheel simulation, since that's the part with no public write access. Trade-off:
+the AI car doesn't get MVC's engine sound/RPM/torque-curve feel; it's straightforward
+arcade physics. **This works with zero Unity restrictions — waypoints are just child
+Transforms, fully hand-editable in the Scene view at any time**, unlike MVC Pro's
+Bezier tool. `RaceCourseEditor`'s "Create AI Path Here" button now creates a
+`SimpleAIPath` with two seed waypoints.
+**If you later buy MVC Pro:** swap `SimpleAIPath`/`SimpleAIPathFollower` back for
+`MVC.AI.VehicleAIPath`/`VehicleAIPathFollower` in `RaceCourse.cs`, `RaceManager.cs`, and
+`RaceOpponentPreset.cs` (search-and-replace scoped, ~15 lines total) to get real
+traffic/overtaking/obstacle-sensor AI and MVC's own engine simulation on AI cars.
+
+### Phase 1 — Data model (ScriptableObjects) — DONE
+`Assets/Scripts/Racing/`:
 - `RaceOpponentPreset` (SO): vehicle prefab ref, optional engine-stat override
-  (power/torque/RPM/mass — real MVC `VehicleEngine` fields), and AI behaviour tuning
-  (`VehicleAIPathFollower.TrafficPolicy`, speed multiplier, follow gaps).
+  (power/torque/RPM/mass — real MVC `VehicleEngine` fields), AI behaviour tuning
+  (`SimpleAIPathFollower.TrafficPolicy`, speed multiplier, follow gaps).
 - `RaceDefinition` (SO): race name, opponent count, opponent preset list, countdown time.
 - `RaceCourse` (scene `MonoBehaviour`, not a SO): links a `RaceDefinition` asset to the
   scene-specific bits that **can't** live in a portable asset — grid slot `Transform[]`,
-  finish line `Transform`, main/alternate `VehicleAIPath` refs. This split was necessary
-  because Unity SOs cannot hold persistent scene-object references.
-- Checkpoints: **no separate checkpoint system needed** — `VehicleAIPath` already exposes
-  `ClosestSpacedPointIndex(position)` / `TotalLength` / `IsValid`, which `RaceManager`
-  uses directly for race-position ordering. One less thing to build.
+  finish line `Transform`, main/alternate `SimpleAIPath` refs. Unity SOs cannot hold
+  persistent scene-object references, hence the split.
+- Checkpoints: no separate system needed — `SimpleAIPath.ClosestPointIndex(position)` /
+  `TotalLength` / `IsValid` (mirroring what `VehicleAIPath` would have given us) is what
+  `RaceManager` uses for race-position ordering.
 
-### Phase 2 — Race Setup Tool (Editor-only) — CODE DONE (2026-08-29)
+### Phase 2 — Race Setup Tool (Editor-only) — DONE
 `Assets/Scripts/Racing/Editor/`:
 - `RaceCourseEditor` (custom inspector for `RaceCourse`): Add/Auto-Arrange grid slots,
-  create finish line, create AI path stub, scene-view position/rotation handles for
-  slots + finish line, validation warnings (slot count vs. definition, missing path).
+  create finish line, create AI path (now `SimpleAIPath`, seeded with 2 waypoints),
+  scene-view position/rotation handles for slots + finish line, validation warnings.
 - `RaceDefinitionLibraryWindow` (`Racing/Race Definitions` menu): browse + create
   `RaceDefinition`/`RaceOpponentPreset` assets.
-- Opened once via script to confirm it instantiates without exceptions. **Not yet
-  exercised by a human clicking through it** — do that before trusting it fully.
+- **Verified working**: used live in-session to author `RaceCourse_CitySprint`'s grid and
+  path; a human (not just script) hand-edited the path waypoints directly in the Scene
+  view to route around a building, proving the workflow is genuinely usable.
 
-### Phase 3 — Free roam + trigger cubes — CODE DONE (2026-08-29)
+### Phase 3 — Free roam + trigger cubes — CODE DONE, not scene-wired
 `RaceTrigger` (`OnTriggerEnter`/`Exit`, ignores AI vehicles via `Vehicle.HasAI`) +
 `RacePromptUI` (shows "Press E or tap to start: {name}", listens for `Keyboard.current`
-E key, confirm button for touch). Not yet wired into an actual scene trigger volume or
-Canvas — code compiles clean, UI hookup is pending.
+E key, confirm button for touch). Compiles clean. Not yet placed as an actual trigger
+volume in the scene or wired to Canvas UI elements — do that next.
 
-### Phase 4 — Race Manager (runtime state machine) — CODE DONE, PARTIALLY VERIFIED
-`RaceEvents` (static C# events) + `RaceManager`
-(`Idle → Countdown → Racing → Finished`). Uses `VehicleAIPathFollower` directly (not a
-generic "AI Controller/AI Agent" — that was the plan's guess at MVC's API surface before
-inspecting it via reflection; the real type is `VehicleAIPathFollower` with a built-in
-`TrafficPolicy.Racing` mode that already handles overtaking/gap-keeping, so no custom
-traffic logic was needed).
-**Verified working in Play mode (2026-08-29):** `BeginRace()` correctly teleports the
-player to grid slot 0, instantiates the opponent from `RaceOpponentPreset.vehiclePrefab`
-at grid slot 1, configures its `VehicleAIPathFollower`, and transitions
-`Idle → Countdown` — all with zero console errors.
-**NOT verified:** the per-frame `Update()` countdown tick → `Racing` → finish-line
-detection → `Finished` flow. The Editor's Play Mode loop stalled mid-session during
-testing (`Time.frameCount`/`Time.time` frozen for 60+ real seconds despite
-`isPlaying=true`, then appeared to reset) — an environment/session stability issue, not
-a code issue, but it means this path is untested. **Re-verify this in a fresh Editor
-session before relying on it.**
+### Phase 4 — Race Manager (runtime state machine) — VERIFIED END-TO-END
+`RaceEvents` (static C# events) + `RaceManager` (`Idle → Countdown → Racing → Finished`),
+using `SimpleAIPathFollower` for opponents (see Pro/Community note above).
+**Confirmed working in Play mode (2026-08-29):**
+- `BeginRace()`: teleports player to grid slot 0, instantiates the opponent from
+  `RaceOpponentPreset.vehiclePrefab` at grid slot 1, configures its
+  `SimpleAIPathFollower`, transitions `Idle → Countdown` — zero console errors.
+- **AI driving, full path**: a `SimpleAIPathFollower`-equipped AI car placed in
+  `RaceCourse_CitySprint` autonomously drove the entire hand-corrected 120m waypoint path
+  (5 waypoints, human-adjusted mid-session to route around a building) — start
+  `(-15, 0, -6)` to `(-9.79, 0.01, 139.55)` near the final waypoint, steering through each
+  intermediate point correctly. This is the core, hardest-to-fake proof that the whole
+  system works.
+- **Not yet re-verified in this exact configuration**: the countdown→Racing state
+  transition and finish-line detection specifically *via `BeginRace()`* (as opposed to a
+  path-follower placed directly in the scene) — the state-machine logic is simple and
+  unchanged from when it was checked earlier, but do a final end-to-end pass (trigger →
+  countdown → race → finish → results) before considering Phase 4 fully closed.
+- **Editor stability note**: this session's Unity Editor repeatedly stalled its Play Mode
+  player loop when not focused (`Time.frameCount` frozen for 60+ real seconds). Simulated
+  time only advances while the Editor window has focus/is being interacted with. Keep the
+  Editor focused during Play mode testing.
 
-### Phase 5 — Race UI — CODE DONE (2026-08-29), NOT VISUALLY TESTED
+### Phase 5 — Race UI — CODE DONE, NOT VISUALLY TESTED
 `RaceUIController` (`Assets/Scripts/Racing/UI/`) subscribes to `RaceEvents` and drives
 countdown/position/results `TMP_Text` fields + panel visibility. Not yet wired to actual
 Canvas UI elements in a scene, so it has never actually rendered anything on screen.
 
-### Phase 6 — AI traffic tuning — NOT STARTED
-Blocked on having a real authored track to tune against (see blocker below). MVC's
-`TrafficPolicy.Racing` + per-preset `followTimeGap`/`followMinimumGap`/speed multiplier
-give the knobs `RaceOpponentPreset` already exposes; actual tuning needs eyes-on
-playtesting once a track exists.
+### Phase 6 — AI traffic tuning — READY TO START
+The blocker (no real track) is resolved — `RaceCourse_CitySprint` has a working, tested
+path. `SimpleAIPathFollower` exposes the same tuning knobs the plan called for
+(`trafficPolicy` Racing/Traffic, `targetSpeedMultiplier`, `followTimeGap`,
+`followMinimumGap`) plus its own physics knobs (`driveAcceleration`, `maxTurnRateDegPerSec`,
+`turnRateDamping`). Its traffic-gap logic (`TrafficPolicy.Traffic`) is a simplified
+raycast-ahead check, not real overtaking — multiple opponents will currently queue behind
+each other rather than pass, since there's no multi-lane/alternate-path logic wired into
+the follower yet (RaceCourse.alternatePaths exists but SimpleAIPathFollower doesn't pick
+between lanes). That's the next real gap to close for the "6+ opponents with real
+overtaking" requirement — see the improvement doc for specifics.
 
-### Phase 7 (later, ambitious) — Parts upgrade — CODE DONE (2026-08-29)
+### Phase 7 (later, ambitious) — Parts upgrade — CODE DONE
 `RacePart` (SO: id, name, cost, additive power/torque/maxRPM/mass deltas) +
 `RaceGarageController` (ownership tracked via `PlayerPrefs`, `ApplyOwnedPartsToVehicle`
 sums all owned deltas onto the live `VehicleEngine`). No economy/spending logic or UI —
-deliberately placeholder per the original plan. Not tested.
-
-## Known blocker: AI path curve authoring cannot be scripted outside Play Mode
-
-`VehicleAIPath.AddNextCurve()` (the API that bakes bezier control points into the
-internal curve representation — confirmed via reflection to include precomputed
-basis/velocity/acceleration/jerk polynomial coefficients, not just raw P0-P3 points) only
-works once the component's real `Awake()` has run. Unity does not call `Awake()` for
-components added to a GameObject outside Play Mode unless the script is
-`[ExecuteAlways]`, and `VehicleAIPath` is not. Manually invoking `Awake()` via reflection,
-and directly writing the raw serialized `bezierCurves` array via `SerializedProperty`,
-were both tried and did not work — the baked coefficient fields (`bt/vt/at/jt`) can't be
-hand-computed reliably without the plugin's source.
-**Practical implication:** an actual race track's `VehicleAIPath` must be authored by a
-human, in the real Unity Editor, using MVC's own AI Path Bezier tooling — not scripted.
-`RaceCourseEditor`'s "Create AI Path Here" button creates the `VehicleAIPath` component
-correctly; a human still needs to place the actual curve points via MVC's own workflow
-(likely also requires Play Mode, given what was found here — worth confirming against
-MVC's own documentation/tutorial video rather than guessing further).
-`RaceCourse_CitySprint` in `TestScene` currently has an **empty, unbaked** `AIPath_Main` —
-`RaceManager` handles this gracefully (position tracking just no-ops when `!path.IsValid`)
-but no AI vehicle will actually drive anywhere until a real path is authored.
+deliberately placeholder per the original plan. Not tested; no UI built to interact with
+it yet.
 
 ## Example content (for testing/reference)
 - `Assets/Racing/OpponentPresets/BmwRival.asset` — uses MVC's own
-  `2005 BMW M3 GTR E46 - AI.prefab` (ships with a `VehicleAIPathFollower` already
-  attached).
+  `2005 BMW M3 GTR E46 - AI.prefab` (ships with a `VehicleAIPathFollower` component that
+  is currently unused/dormant — `SimpleAIPathFollower` is added alongside it at runtime).
 - `Assets/Racing/Races/CitySprintTest.asset` — 1 opponent, 3s countdown.
-- `RaceCourse_CitySprint` in `TestScene`: 2 grid slots, a finish line 120m down +Z from
-  world origin, `RaceManager` on `_GameController`. AI path unbaked (see blocker above).
+- `RaceCourse_CitySprint` in `TestScene`: 2 grid slots (aligned with the path start),
+  finish line, `AIPath_Main` (`SimpleAIPath`, 5 waypoints, hand-corrected to avoid a
+  building), `RaceManager` on `_GameController`. `AI_Opponent_1` is placed persistently
+  in the scene at grid slot 1 with a working `SimpleAIPathFollower` for quick testing —
+  press Play and watch it drive without needing to trigger `BeginRace()`.
 
 ## Build order
 
 0 → 1 → 2 → 4 (with 1-2 AI, no traffic tuning yet) → 3 → 5 → 6 (scale to 6+, tune) → 7
 
-**Actual status (2026-08-29):** all code for 0-5 and 7 is written and compiles clean.
-Phase 4's core state-transition and spawning logic is confirmed working; the rest of its
-state machine and all of Phase 5's UI are implemented but unverified on screen. Phase 6
-can't start until a human authors a real `VehicleAIPath` in the Editor (see blocker). Next
-session should: (1) restart Unity fresh — this session's Editor/MCP bridge showed repeated
-instability (dropped connections after domain reloads, one stalled/reset Play session);
-(2) have a human author `RaceCourse_CitySprint`'s AI path by hand; (3) wire
-`RaceUIController`/`RacePromptUI` to actual Canvas elements; (4) re-run the Play-mode
-smoke test end-to-end (countdown → racing → finish) now that a real path exists.
+**Actual status (2026-08-29):** 0, 1, 2, 4 are done and verified (including the hardest
+part — an AI car actually driving a hand-authored path end to end). 3, 5, 7 are code-
+complete but not scene-wired/visually tested. 6 is unblocked and ready to start but the
+follower doesn't yet support multi-lane overtaking. See `TESTING_AND_ROADMAP.md` for the
+full test checklist and a prioritized list of what's left, including everything outside
+this session's scope.

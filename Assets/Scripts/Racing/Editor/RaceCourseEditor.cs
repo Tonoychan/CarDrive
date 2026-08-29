@@ -1,7 +1,7 @@
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
-using MVC.AI;
+using Racing.AI;
 
 namespace Racing.EditorTools
 {
@@ -130,7 +130,17 @@ namespace Racing.EditorTools
             var go = new GameObject(Course.mainPath == null ? "AIPath_Main" : $"AIPath_Alt_{(Course.alternatePaths?.Length ?? 0)}");
             Undo.RegisterCreatedObjectUndo(go, "Create AI Path");
             go.transform.position = Course.transform.position;
-            var path = go.AddComponent<VehicleAIPath>();
+            var path = go.AddComponent<SimpleAIPath>();
+
+            // Seed two waypoints (start + 50m ahead) so the path is immediately valid;
+            // use SimpleAIPathEditor's "Add Waypoint" to extend it.
+            var wp0 = new GameObject("Waypoint_0").transform;
+            wp0.SetParent(go.transform);
+            wp0.position = go.transform.position;
+            var wp1 = new GameObject("Waypoint_1").transform;
+            wp1.SetParent(go.transform);
+            wp1.position = go.transform.position + go.transform.forward * 50f;
+            path.waypoints = new[] { wp0, wp1 };
 
             if (Course.mainPath == null)
             {
@@ -138,7 +148,7 @@ namespace Racing.EditorTools
             }
             else
             {
-                var list = Course.alternatePaths?.ToList() ?? new System.Collections.Generic.List<VehicleAIPath>();
+                var list = Course.alternatePaths?.ToList() ?? new System.Collections.Generic.List<SimpleAIPath>();
                 list.Add(path);
                 Course.alternatePaths = list.ToArray();
             }
