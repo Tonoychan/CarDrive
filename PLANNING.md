@@ -39,9 +39,23 @@ Reasoning:
   `MVC.VehicleManager`). The `Vehicle Physics Pro` folder still exists under `Assets/` as
   an unused reference package — left in place per the original plan (reference only, not
   in the live scene).
-- [ ] Set up desktop + mobile input/UI in one project configuration, using the existing
-  `MVC Getting Started - Mobile` scene as the reference for joystick UI and action maps.
-  **Not yet started.**
+- ~~Set up desktop + mobile input/UI in one project configuration~~ — **DONE (2026-08-29):**
+  merged `_GameController` from
+  `Assets/BxB Studio/MVC Getting Started - Mobile/Scenes/DefaultScene - Mobile.unity` into
+  `TestScene`, replacing the old bare controller (which had `VehicleManager` only, no UI).
+  The merged controller carries `PostProcessing`, `Canvas` (desktop HUD: SpeedMeter, logos)
+  and `MobileCanvas` (`MobilePreset0`, `MobilePreset1`, `EventSystem`) as children, all
+  driven by MVC's built-in `VehicleUIController` — confirming MVC already ships the "one
+  HUD, platform-conditional input layer" pattern Phase 5 calls for (`activeMobilePreset`
+  toggles which joystick/touch layout `RectTransform` group is active). `VehicleManager
+  .playerTarget` was repointed to TestScene's `2005 BMW M3 GTR E46`. Verified error-free in
+  Play mode: steering wheel, pedals, handbrake, NOS button, and speed/RPM HUD all render
+  and respond against the BMW (see screenshot sent in chat). `GroundMappers` was left
+  empty (TestScene's `Plane` has no `VehicleGroundMapper` component yet) — surface
+  grip/audio tuning is Phase 6 scope, not a blocker here.
+  - Known follow-up (not urgent): actual runtime platform detection (auto-picking desktop
+    vs. mobile preset instead of both existing side-by-side) is Phase 5 polish, not done
+    here.
 
 ### Phase 1 — Data model (ScriptableObjects)
 - `RaceDefinition`: start transform, end transform (grid-positioned for 6+ cars), one or
