@@ -12,9 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 89cefef7d74564640beaaab15c4d72ac, type: 3}
   m_Name: CitySprintTest
   m_EditorClassIdentifier: Assembly-CSharp::Racing.RaceDefinition
-  raceName: City Sprint Test
-  description: 
-  opponentCount: 1
+  raceName: City Sprint
+  description: A quick point-to-point sprint through the city.
+  opponentCount: 4
   opponentPresets:
-  - {fileID: 11400000, guid: 1ed1786861542b142a6276dc1f9d8d6c, type: 2}
+  - {fileID: 11400000, guid: 86e60c4c643ee774896e746d677bcd43, type: 2}
+  - {fileID: 11400000, guid: 94a8e20c156aa22419a28da9de9f8dad, type: 2}
+  - {fileID: 11400000, guid: b4bd019c2c9e8744abc0c57ef2a9424e, type: 2}
+  - {fileID: 11400000, guid: ae9b2fb4860a39d41b7e6859817d5ccc, type: 2}
   countdownSeconds: 3

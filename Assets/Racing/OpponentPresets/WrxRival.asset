@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b017a1d4e0e98984e8df217256068346, type: 3}
+  m_Name: WrxRival
+  m_EditorClassIdentifier: Assembly-CSharp::Racing.RaceOpponentPreset
+  vehiclePrefab: {fileID: 2035896763161846226, guid: 5f247ca4d21daf246b73457a04e66081, type: 3}
+  displayName: Subaru WRX STi
+  overrideEngine: 0
+  power: 300
+  torque: 350
+  maximumRPM: 7000
+  redlineRPM: 6500
+  mass: 1400
+  trafficPolicy: 0
+  targetSpeedMultiplier: 0.9
+  followTimeGap: 1.2
+  followMinimumGap: 4

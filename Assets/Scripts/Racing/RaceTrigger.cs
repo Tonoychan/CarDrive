@@ -10,7 +10,13 @@ namespace Racing
         public RaceCourse course;
         public string promptLabel = "Start Race";
 
+        [Tooltip("How long the player must stay inside the trigger before the start " +
+                 "popup appears.")]
+        [Min(0f)] public float hoverSecondsToPrompt = 1.5f;
+
         Vehicle playerInTrigger;
+        float hoverTimer;
+        bool promptShown;
 
         void Reset()
         {
@@ -26,7 +32,20 @@ namespace Racing
             if (vehicle == null || vehicle.HasAI) return;
 
             playerInTrigger = vehicle;
-            RacePromptUI.Instance?.Show(this);
+            hoverTimer = 0f;
+            promptShown = false;
+        }
+
+        void Update()
+        {
+            if (playerInTrigger == null || promptShown) return;
+
+            hoverTimer += Time.deltaTime;
+            if (hoverTimer >= hoverSecondsToPrompt)
+            {
+                promptShown = true;
+                RacePromptUI.Instance?.Show(this);
+            }
         }
 
         void OnTriggerExit(Collider other)
@@ -35,13 +54,25 @@ namespace Racing
             if (vehicle == null || vehicle != playerInTrigger) return;
 
             playerInTrigger = null;
-            RacePromptUI.Instance?.Hide(this);
+            hoverTimer = 0f;
+            if (promptShown)
+            {
+                promptShown = false;
+                RacePromptUI.Instance?.Hide(this);
+            }
         }
 
         public void Confirm()
         {
             if (course == null || RaceManager.Instance == null) return;
             RaceManager.Instance.BeginRace(course);
+            promptShown = false;
+            RacePromptUI.Instance?.Hide(this);
+        }
+
+        public void Cancel()
+        {
+            promptShown = false;
             RacePromptUI.Instance?.Hide(this);
         }
     }

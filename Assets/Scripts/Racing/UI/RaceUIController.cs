@@ -1,5 +1,8 @@
 using UnityEngine;
 using TMPro;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 namespace Racing.UI
 {
@@ -16,6 +19,24 @@ namespace Racing.UI
         [Header("Results")]
         public GameObject resultsPanel;
         public TMP_Text resultsText;
+
+        bool resultsShowing;
+
+        void Update()
+        {
+            if (!resultsShowing) return;
+#if ENABLE_INPUT_SYSTEM
+            if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+                CloseResults();
+#endif
+        }
+
+        void CloseResults()
+        {
+            resultsShowing = false;
+            SetPanelActive(resultsPanel, false);
+            RaceManager.Instance?.ResetToIdle();
+        }
 
         void OnEnable()
         {
@@ -41,6 +62,7 @@ namespace Racing.UI
 
         void OnCountdownStarted(float seconds)
         {
+            resultsShowing = false;
             SetPanelActive(resultsPanel, false);
             SetPanelActive(countdownPanel, true);
         }
@@ -67,6 +89,7 @@ namespace Racing.UI
         {
             SetPanelActive(hudPanel, false);
             SetPanelActive(resultsPanel, true);
+            resultsShowing = true;
 
             if (resultsText == null) return;
             var sb = new System.Text.StringBuilder();
@@ -76,6 +99,7 @@ namespace Racing.UI
                 if (r.isPlayer) sb.Append("  (You)");
                 sb.AppendLine();
             }
+            sb.AppendLine().Append("Press Esc to close");
             resultsText.text = sb.ToString();
         }
 
