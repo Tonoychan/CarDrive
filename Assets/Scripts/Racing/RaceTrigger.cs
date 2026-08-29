@@ -4,19 +4,36 @@ using Racing.UI;
 
 namespace Racing
 {
+    /// Lives on the same GameObject as RaceCourse (auto-wired via GetComponent, no
+    /// manual dragging) so a trigger point is always self-contained: place one prefab
+    /// per race/track and everything -- course data, path, opponent presets -- comes
+    /// along with it. This makes adding new races/tracks a matter of placing a new
+    /// GameObject with both components rather than manually wiring cross-references.
     [RequireComponent(typeof(Collider))]
+    [RequireComponent(typeof(RaceCourse))]
     public class RaceTrigger : MonoBehaviour
     {
-        public RaceCourse course;
         public string promptLabel = "Start Race";
 
         [Tooltip("How long the player must stay inside the trigger before the start " +
                  "popup appears.")]
         [Min(0f)] public float hoverSecondsToPrompt = 1.5f;
 
+        [Tooltip("Master gate for this trigger -- set false to disable it entirely " +
+                 "(e.g. from a progression/unlock system) without touching the " +
+                 "GameObject's active state.")]
+        public bool isEnabled = true;
+
+        public RaceCourse Course { get; private set; }
+
         Vehicle playerInTrigger;
         float hoverTimer;
         bool promptShown;
+
+        void Awake()
+        {
+            Course = GetComponent<RaceCourse>();
+        }
 
         void Reset()
         {
@@ -26,6 +43,7 @@ namespace Racing
 
         void OnTriggerEnter(Collider other)
         {
+            if (!isEnabled) return;
             if (RaceManager.Instance != null && RaceManager.Instance.State != RaceState.Idle) return;
 
             var vehicle = other.GetComponentInParent<Vehicle>();
@@ -38,7 +56,7 @@ namespace Racing
 
         void Update()
         {
-            if (playerInTrigger == null || promptShown) return;
+            if (!isEnabled || playerInTrigger == null || promptShown) return;
 
             hoverTimer += Time.deltaTime;
             if (hoverTimer >= hoverSecondsToPrompt)
@@ -64,8 +82,8 @@ namespace Racing
 
         public void Confirm()
         {
-            if (course == null || RaceManager.Instance == null) return;
-            RaceManager.Instance.BeginRace(course);
+            if (Course == null || RaceManager.Instance == null) return;
+            RaceManager.Instance.BeginRace(Course);
             promptShown = false;
             RacePromptUI.Instance?.Hide(this);
         }

@@ -41,7 +41,7 @@ namespace Racing.UI
             active = trigger;
             if (panel != null) panel.SetActive(true);
 
-            var def = trigger.course != null ? trigger.course.definition : null;
+            var def = trigger.Course != null ? trigger.Course.definition : null;
             if (titleText != null)
                 titleText.text = def != null && !string.IsNullOrEmpty(def.raceName) ? def.raceName : trigger.promptLabel;
             if (detailsText != null)

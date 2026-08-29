@@ -32,6 +32,13 @@ namespace Racing.EditorTools
             if (GUILayout.Button("Create AI Path Here"))
                 CreateAIPath();
             EditorGUILayout.EndHorizontal();
+
+            var existingTrigger = Course.GetComponent<RaceTrigger>();
+            using (new EditorGUI.DisabledScope(existingTrigger != null))
+            {
+                if (GUILayout.Button(existingTrigger != null ? "Trigger Already Added" : "Add Race Trigger Here"))
+                    AddTrigger();
+            }
         }
 
         void DrawValidation()
@@ -56,6 +63,12 @@ namespace Racing.EditorTools
 
             if (Course.finishLine == null)
                 EditorGUILayout.HelpBox("No finish line assigned.", MessageType.Warning);
+
+            if (Course.GetComponent<RaceTrigger>() == null)
+                EditorGUILayout.HelpBox(
+                    "No RaceTrigger on this GameObject -- players have no way to start " +
+                    "this race yet. Use Add Race Trigger Here.",
+                    MessageType.Warning);
         }
 
         void AddGridSlot()
@@ -154,6 +167,25 @@ namespace Racing.EditorTools
             }
             EditorUtility.SetDirty(Course);
             Selection.activeGameObject = go;
+        }
+
+        void AddTrigger()
+        {
+            Undo.RecordObject(Course.gameObject, "Add Race Trigger");
+            var col = Undo.AddComponent<BoxCollider>(Course.gameObject);
+            col.isTrigger = true;
+            col.size = new Vector3(14f, 4f, 14f);
+            // Default the trigger a bit behind the player's own grid slot, along its
+            // facing direction, so driving toward the start line enters it naturally.
+            if (Course.gridSlots != null && Course.gridSlots.Length > 0 && Course.gridSlots[0] != null)
+            {
+                var slot = Course.gridSlots[0];
+                Vector3 worldCenter = slot.position - slot.forward * 20f;
+                col.center = Course.transform.InverseTransformPoint(worldCenter);
+            }
+
+            Undo.AddComponent<RaceTrigger>(Course.gameObject);
+            EditorUtility.SetDirty(Course.gameObject);
         }
 
         void OnSceneGUI()
