@@ -100,6 +100,7 @@ namespace Racing
                 follower.targetSpeedMultiplier = preset.targetSpeedMultiplier;
                 follower.followTimeGap = preset.followTimeGap;
                 follower.followMinimumGap = preset.followMinimumGap;
+                follower.canDrive = false;
 
                 participants.Add(new RaceParticipant { vehicle = vehicle, aiFollower = follower, isPlayer = false });
             }
@@ -145,6 +146,10 @@ namespace Racing
             if (countdownRemaining <= 0f)
             {
                 State = RaceState.Racing;
+                foreach (var p in participants)
+                {
+                    if (p.aiFollower != null) p.aiFollower.canDrive = true;
+                }
                 RaceEvents.RaiseRaceStarted();
             }
         }

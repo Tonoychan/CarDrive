@@ -25,6 +25,11 @@ namespace Racing.AI
         public SimpleAIPath path;
         public FollowDirection followDirection = FollowDirection.Default;
 
+        [Tooltip("While false, the car sits idle (no steering or throttle) -- used to " +
+                 "hold AI opponents at the grid during the race countdown. Defaults to " +
+                 "true so a follower placed standalone (outside RaceManager) just works.")]
+        public bool canDrive = true;
+
         [Header("Speed")]
         [Range(0.3f, 1.5f)] public float targetSpeedMultiplier = 1f;
         [Tooltip("Throttle is reduced proportionally to steering sharpness above this angle (degrees).")]
@@ -68,7 +73,7 @@ namespace Racing.AI
 
         void FixedUpdate()
         {
-            if (path == null || !path.IsValid || rb == null) return;
+            if (!canDrive || path == null || !path.IsValid || rb == null) return;
 
             if (!started)
             {
