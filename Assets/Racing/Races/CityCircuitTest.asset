@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 89cefef7d74564640beaaab15c4d72ac, type: 3}
+  m_Name: CityCircuitTest
+  m_EditorClassIdentifier: Assembly-CSharp::Racing.RaceDefinition
+  raceName: City Circuit
+  description: A quick 2 circuit through the city.
+  opponentCount: 3
+  opponentPresets:
+  - {fileID: 11400000, guid: ae9b2fb4860a39d41b7e6859817d5ccc, type: 2}
+  - {fileID: 11400000, guid: b4bd019c2c9e8744abc0c57ef2a9424e, type: 2}
+  - {fileID: 11400000, guid: 86e60c4c643ee774896e746d677bcd43, type: 2}
+  countdownSeconds: 3

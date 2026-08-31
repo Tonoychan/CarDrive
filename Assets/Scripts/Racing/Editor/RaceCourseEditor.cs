@@ -33,7 +33,7 @@ namespace Racing.EditorTools
                 CreateAIPath();
             EditorGUILayout.EndHorizontal();
 
-            var existingTrigger = Course.GetComponent<RaceTrigger>();
+            var existingTrigger = Course.GetComponentInChildren<RaceTrigger>();
             using (new EditorGUI.DisabledScope(existingTrigger != null))
             {
                 if (GUILayout.Button(existingTrigger != null ? "Trigger Already Added" : "Add Race Trigger Here"))
@@ -64,9 +64,9 @@ namespace Racing.EditorTools
             if (Course.finishLine == null)
                 EditorGUILayout.HelpBox("No finish line assigned.", MessageType.Warning);
 
-            if (Course.GetComponent<RaceTrigger>() == null)
+            if (Course.GetComponentInChildren<RaceTrigger>() == null)
                 EditorGUILayout.HelpBox(
-                    "No RaceTrigger on this GameObject -- players have no way to start " +
+                    "No RaceTrigger under this course -- players have no way to start " +
                     "this race yet. Use Add Race Trigger Here.",
                     MessageType.Warning);
         }
@@ -171,8 +171,13 @@ namespace Racing.EditorTools
 
         void AddTrigger()
         {
-            Undo.RecordObject(Course.gameObject, "Add Race Trigger");
-            var col = Undo.AddComponent<BoxCollider>(Course.gameObject);
+            var triggerGO = new GameObject("TriggerArea");
+            Undo.RegisterCreatedObjectUndo(triggerGO, "Add Race Trigger");
+            triggerGO.transform.SetParent(Course.transform);
+            triggerGO.transform.localPosition = Vector3.zero;
+            triggerGO.transform.localRotation = Quaternion.identity;
+
+            var col = Undo.AddComponent<BoxCollider>(triggerGO);
             col.isTrigger = true;
             col.size = new Vector3(14f, 4f, 14f);
             // Default the trigger a bit behind the player's own grid slot, along its
@@ -181,11 +186,11 @@ namespace Racing.EditorTools
             {
                 var slot = Course.gridSlots[0];
                 Vector3 worldCenter = slot.position - slot.forward * 20f;
-                col.center = Course.transform.InverseTransformPoint(worldCenter);
+                col.center = triggerGO.transform.InverseTransformPoint(worldCenter);
             }
 
-            Undo.AddComponent<RaceTrigger>(Course.gameObject);
-            EditorUtility.SetDirty(Course.gameObject);
+            Undo.AddComponent<RaceTrigger>(triggerGO);
+            EditorUtility.SetDirty(triggerGO);
         }
 
         void OnSceneGUI()

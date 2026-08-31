@@ -4,13 +4,13 @@ using Racing.UI;
 
 namespace Racing
 {
-    /// Lives on the same GameObject as RaceCourse (auto-wired via GetComponent, no
-    /// manual dragging) so a trigger point is always self-contained: place one prefab
-    /// per race/track and everything -- course data, path, opponent presets -- comes
-    /// along with it. This makes adding new races/tracks a matter of placing a new
-    /// GameObject with both components rather than manually wiring cross-references.
+    /// Lives on its own GameObject (typically a child of the RaceCourse, e.g.
+    /// "TriggerArea") and auto-wires to the nearest RaceCourse up the hierarchy via
+    /// GetComponentInParent -- no manual dragging. This keeps the trigger volume free
+    /// to be placed/sized independently of the course's root object while the whole
+    /// race (course data, path, opponent presets, trigger) still ships as one
+    /// self-contained prefab.
     [RequireComponent(typeof(Collider))]
-    [RequireComponent(typeof(RaceCourse))]
     public class RaceTrigger : MonoBehaviour
     {
         public string promptLabel = "Start Race";
@@ -32,7 +32,7 @@ namespace Racing
 
         void Awake()
         {
-            Course = GetComponent<RaceCourse>();
+            Course = GetComponentInParent<RaceCourse>();
         }
 
         void Reset()

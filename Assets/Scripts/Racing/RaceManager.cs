@@ -72,7 +72,15 @@ namespace Racing
                     rb.angularVelocity = Vector3.zero;
                     rb.isKinematic = true;
                 }
-                player.enabled = false;
+                // Deliberately NOT disabling the player's Vehicle component here: the
+                // follow camera's own update appears gated on Vehicle.enabled, so
+                // disabling it froze the camera at whatever it was looking at when the
+                // countdown started (e.g. the trigger popup view) for the whole
+                // countdown. The kinematic Rigidbody plus the per-frame grid-pose snap
+                // in TickCountdown() below are what actually keep the car from moving;
+                // Vehicle staying enabled just lets the camera keep tracking it.
+                var camera = FindFirstObjectByType<VehicleFollower>();
+                if (camera != null) camera.Restart();
                 participants.Add(new RaceParticipant
                 {
                     vehicle = player,
@@ -173,7 +181,10 @@ namespace Racing
             {
                 if (p.vehicle == null) continue;
                 p.vehicle.transform.SetPositionAndRotation(p.gridPosition, p.gridRotation);
-                if (p.rigidbody != null)
+                // Kinematic rigidbodies ignore velocity entirely -- writing to it just
+                // logs "not supported" warnings every frame, for every car, for the
+                // whole countdown.
+                if (p.rigidbody != null && !p.rigidbody.isKinematic)
                 {
                     p.rigidbody.linearVelocity = Vector3.zero;
                     p.rigidbody.angularVelocity = Vector3.zero;

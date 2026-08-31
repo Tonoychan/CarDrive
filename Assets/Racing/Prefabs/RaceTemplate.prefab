@@ -136,10 +136,12 @@ MonoBehaviour:
   gridSlots:
   - {fileID: 3429220608858145509}
   - {fileID: 1436292595672982387}
-  finishLine: {fileID: 264042060406766823}
+  - {fileID: 0}
+  finishLine: {fileID: 0}
   finishLineRadius: 8
   mainPath: {fileID: 5695824548763222837}
-  alternatePaths: []
+  alternatePaths:
+  - {fileID: 0}
   wrongWayDotThreshold: -0.3
 --- !u!65 &5372927798210330632
 BoxCollider:
