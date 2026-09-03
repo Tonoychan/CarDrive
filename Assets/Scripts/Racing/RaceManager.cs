@@ -15,6 +15,10 @@ namespace Racing
 
         public RaceState State { get; private set; } = RaceState.Idle;
 
+        /// Non-null from BeginRace() until ResetToIdle() -- used by MinimapController
+        /// to point a beacon at RaceCourse.finishLine.
+        public RaceCourse ActiveCourse => activeCourse;
+
         RaceCourse activeCourse;
         RaceCourse lastCourse;
         readonly List<RaceParticipant> participants = new List<RaceParticipant>();
@@ -344,6 +348,39 @@ namespace Racing
                 })
                 .ToArray();
             RaceEvents.RaiseRaceFinished(results);
+            GrantRewardIfEarned();
+        }
+
+        /// Only the player's own finish counts -- a DNF (race ended because every OTHER
+        /// participant finished/despawned while the player never crossed the line)
+        /// earns nothing. First-ever clear of a given RaceDefinition pays full reward;
+        /// every clear after that pays repeatRewardMultiplier of it (see
+        /// RaceDefinition.GetReward). Needs both PlayerProgress and PlayerCurrency in
+        /// the scene -- silently skips if either is missing rather than throwing, same
+        /// as every other Instance-optional lookup in this codebase.
+        void GrantRewardIfEarned()
+        {
+            var def = activeCourse != null ? activeCourse.definition : null;
+            var playerParticipant = participants.FirstOrDefault(p => p.isPlayer);
+            if (def == null || playerParticipant == null || !playerParticipant.finished) return;
+
+            bool firstClear = PlayerProgress.Instance == null || !PlayerProgress.Instance.HasCompleted(def);
+            var (xp, coins) = def.GetReward(firstClear);
+
+            int levelBefore = PlayerProgress.Instance != null ? PlayerProgress.Instance.Level : 1;
+            PlayerProgress.Instance?.GainXP(xp);
+            PlayerCurrency.Instance?.Earn(coins);
+            PlayerProgress.Instance?.MarkCompleted(def);
+            int levelAfter = PlayerProgress.Instance != null ? PlayerProgress.Instance.Level : levelBefore;
+
+            RaceEvents.RaiseRewardGranted(new RaceReward
+            {
+                xpGained = xp,
+                coinsGained = coins,
+                firstClear = firstClear,
+                leveledUp = levelAfter > levelBefore,
+                newLevel = levelAfter
+            });
         }
 
         public void ResetToIdle()

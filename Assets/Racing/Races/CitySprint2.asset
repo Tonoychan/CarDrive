@@ -12,8 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 89cefef7d74564640beaaab15c4d72ac, type: 3}
   m_Name: CitySprint2
   m_EditorClassIdentifier: Assembly-CSharp::Racing.RaceDefinition
+  raceId: city_sprint_2
   raceName: City Circuit
   description: A quick 2 circuit through the city.
+  requiredLevel: 1
+  baseXPReward: 100
+  baseCoinReward: 150
+  repeatRewardMultiplier: 0.5
   opponentCount: 3
   opponentPresets:
   - {fileID: 11400000, guid: ae9b2fb4860a39d41b7e6859817d5ccc, type: 2}

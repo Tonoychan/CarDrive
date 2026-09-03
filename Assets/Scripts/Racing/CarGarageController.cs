@@ -25,6 +25,11 @@ namespace Racing
     {
         public CarRosterEntry[] roster;
 
+        /// Where the selected car spawns/re-spawns in Drive_Scene -- set this to an
+        /// empty Transform placed near GarageTrigger in the scene. Falls back to the
+        /// previous vehicle's position if unset.
+        public Transform garageSpawnPoint;
+
         public int SelectedIndex { get; private set; } = -1;
         public Vehicle CurrentVehicle { get; private set; }
 
@@ -54,7 +59,8 @@ namespace Racing
             if (vm == null) return;
 
             var previous = vm.PlayerVehicle;
-            Transform spawnPoint = previous != null ? previous.transform : transform;
+            Transform spawnPoint = garageSpawnPoint != null ? garageSpawnPoint
+                : previous != null ? previous.transform : transform;
 
             var go = Instantiate(entry.vehiclePrefab, spawnPoint.position, spawnPoint.rotation);
             var vehicle = go.GetComponent<Vehicle>();

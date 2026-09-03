@@ -15,6 +15,34 @@ namespace Racing
             Course = GetComponentInParent<RaceCourse>();
         }
 
+        void Start()
+        {
+            // Subscribing here rather than OnEnable(): Start() runs only after every
+            // Awake() in the scene has completed, so PlayerProgress.Instance (set in
+            // its own Awake, on a different GameObject) is guaranteed to exist by now.
+            if (PlayerProgress.Instance != null) PlayerProgress.Instance.LevelChanged += OnLevelChanged;
+            RefreshUnlockState();
+        }
+
+        void OnDestroy()
+        {
+            if (PlayerProgress.Instance != null) PlayerProgress.Instance.LevelChanged -= OnLevelChanged;
+        }
+
+        void OnLevelChanged(int newLevel) => RefreshUnlockState();
+
+        /// isEnabled is WorldPromptTrigger's existing "master gate" field (see its own
+        /// doc comment) -- this just drives it from the player's level instead of
+        /// hand-flipping it in the Inspector. Unlocked-by-default (requiredLevel<=1)
+        /// races stay interactable even before PlayerProgress exists in the scene.
+        void RefreshUnlockState()
+        {
+            var def = Course != null ? Course.definition : null;
+            if (def == null) return;
+            int level = PlayerProgress.Instance != null ? PlayerProgress.Instance.Level : 1;
+            isEnabled = def.IsUnlocked(level);
+        }
+
         public override string PromptLabel
         {
             get

@@ -12,8 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 89cefef7d74564640beaaab15c4d72ac, type: 3}
   m_Name: CityLapTest1
   m_EditorClassIdentifier: Assembly-CSharp::Racing.RaceDefinition
+  raceId: city_lap_test_1
   raceName: City Lap Test
   description: A quick point-to-point sprint through the city.
+  requiredLevel: 1
+  baseXPReward: 100
+  baseCoinReward: 150
+  repeatRewardMultiplier: 0.5
   opponentCount: 4
   opponentPresets:
   - {fileID: 11400000, guid: 86e60c4c643ee774896e746d677bcd43, type: 2}

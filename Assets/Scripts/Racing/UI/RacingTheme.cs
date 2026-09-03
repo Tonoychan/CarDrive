@@ -32,6 +32,12 @@ namespace Racing.UI
         static Sprite solid;
         public static Sprite Solid => solid != null ? solid : solid = CreateSolidSprite();
 
+        static Sprite circleMask;
+        public static Sprite CircleMask => circleMask != null ? circleMask : circleMask = Resources.Load<Sprite>("UI/CircleMask");
+
+        static RenderTexture minimapRT;
+        public static RenderTexture MinimapRT => minimapRT != null ? minimapRT : minimapRT = Resources.Load<RenderTexture>("UI/MinimapRT");
+
         static Sprite CreateSolidSprite()
         {
             var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false) { name = "RacingTheme_Solid" };
@@ -64,6 +70,28 @@ namespace Racing.UI
             content.anchorMax = Vector2.one;
             content.offsetMin = new Vector2(borderPx, borderPx);
             content.offsetMax = new Vector2(-borderPx, -borderPx);
+            return frameRt;
+        }
+
+        /// A circular ink-ringed, masked panel -- backing ink circle + inset content
+        /// area clipped round via a UI Mask using the same circle sprite. Returns the
+        /// outer (frame) rect; parent children into 'content' to have them clipped.
+        public static RectTransform CreateCircleFramedPanel(string name, Transform parent, out RectTransform content, float borderPx = 3f)
+        {
+            var frameRt = CreateImage(name, parent, Ink, out var frameImg);
+            frameImg.sprite = CircleMask;
+            frameImg.type = Image.Type.Simple;
+
+            var maskGo = new GameObject(name + "_Mask", typeof(RectTransform), typeof(Image), typeof(Mask));
+            maskGo.transform.SetParent(frameRt, false);
+            var maskRt = (RectTransform)maskGo.transform;
+            Stretch(maskRt, borderPx, borderPx, borderPx, borderPx);
+            var maskImg = maskGo.GetComponent<Image>();
+            maskImg.sprite = CircleMask;
+            maskImg.type = Image.Type.Simple;
+            maskGo.GetComponent<Mask>().showMaskGraphic = false;
+
+            content = maskRt;
             return frameRt;
         }
 

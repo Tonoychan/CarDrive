@@ -16,7 +16,7 @@ namespace Racing.UI
     /// This component only finds/wires the already-existing elements at runtime.
     public class RaceUIController : MonoBehaviour
     {
-        [SerializeField] GameObject countdownPanel, hudPanel, resultsPanel;
+        [SerializeField] GameObject countdownPanel, hudPanel, resultsPanel, speedPanel;
 
         // Countdown
         [SerializeField] TMP_Text countdownStripText, countdownNumberText, countdownGoText;
@@ -27,7 +27,7 @@ namespace Racing.UI
         [SerializeField] RectTransform progressFill;
 
         // Results
-        [SerializeField] TMP_Text resultsHeaderText, resultsTimeText;
+        [SerializeField] TMP_Text resultsHeaderText, resultsTimeText, rewardText;
         [SerializeField] Transform resultsRowsParent;
         [SerializeField] Button raceAgainButton;
 
@@ -54,10 +54,13 @@ namespace Racing.UI
             RaceEvents.ProgressChanged += OnProgressChanged;
             RaceEvents.RaceFinished += OnRaceFinished;
             RaceEvents.RaceInfo += OnRaceInfo;
+            RaceEvents.RewardGranted += OnRewardGranted;
 
             SetActive(countdownPanel, false);
             SetActive(hudPanel, false);
             SetActive(resultsPanel, false);
+            // Speed/gear readout is not race-gated -- visible during free roam too.
+            SetActive(speedPanel, true);
         }
 
         void OnDisable()
@@ -70,6 +73,7 @@ namespace Racing.UI
             RaceEvents.ProgressChanged -= OnProgressChanged;
             RaceEvents.RaceFinished -= OnRaceFinished;
             RaceEvents.RaceInfo -= OnRaceInfo;
+            RaceEvents.RewardGranted -= OnRewardGranted;
         }
 
         void LateUpdate()
@@ -82,7 +86,7 @@ namespace Racing.UI
 
         void Update()
         {
-            if (hudPanel.activeSelf) UpdateLiveReadouts();
+            if (speedPanel != null && speedPanel.activeSelf) UpdateLiveReadouts();
 
             if (!resultsShowing) return;
 #if ENABLE_INPUT_SYSTEM
@@ -177,10 +181,22 @@ namespace Racing.UI
             float leaderTime = results.Length > 0 ? results[0].elapsedSeconds : 0f;
             resultsHeaderText.text = courseName;
             resultsTimeText.text = FormatTime(leaderTime);
+            // RewardGranted (if earned) fires synchronously right after RaceFinished
+            // from the same RaceManager.FinishRace() call, so this only stays blank on
+            // an actual DNF -- no stale reward text can linger from a previous race.
+            if (rewardText != null) rewardText.text = "";
 
             foreach (Transform child in resultsRowsParent) Destroy(child.gameObject);
             for (int i = 0; i < results.Length; i++)
                 BuildResultRow(results[i], leaderTime, i);
+        }
+
+        void OnRewardGranted(RaceReward reward)
+        {
+            if (rewardText == null) return;
+            string tier = reward.firstClear ? "FIRST CLEAR BONUS" : "REPEAT RUN";
+            string levelUp = reward.leveledUp ? $"   ·   LEVEL UP → {reward.newLevel}" : "";
+            rewardText.text = $"+{reward.xpGained} XP   ·   +{reward.coinsGained} COINS   ·   {tier}{levelUp}";
         }
 
         void BuildResultRow(RaceResult r, float leaderTime, int index)
@@ -264,9 +280,47 @@ namespace Racing.UI
             var rootRt = (RectTransform)rootGo.transform;
             RacingTheme.Stretch(rootRt);
 
+            BuildSpeedPanel(rootRt);
+            BuildMinimap(speedPanel.transform);
             BuildCountdown(rootRt);
             BuildHud(rootRt);
             BuildResults(rootRt);
+        }
+
+        void BuildMinimap(Transform parent)
+        {
+            const float diameter = 200f;
+            var frame = RacingTheme.CreateCircleFramedPanel("MinimapCard", parent, out var content, 3f);
+            RacingTheme.PlaceBottomRight(frame, 40f, 40f, diameter, diameter);
+
+            var mapGo = new GameObject("MapTexture", typeof(RectTransform), typeof(RawImage));
+            mapGo.transform.SetParent(content, false);
+            RacingTheme.Stretch((RectTransform)mapGo.transform);
+            mapGo.GetComponent<RawImage>().texture = RacingTheme.MinimapRT;
+
+            // Fixed arrow -- the map rotates under it, so the player always points up.
+            RacingTheme.CreateLabel("PlayerArrow", frame, "▲", 26f, RacingTheme.ExtraBold, RacingTheme.Accent, 0f, TextAlignmentOptions.Center);
+        }
+
+        void BuildSpeedPanel(Transform parent)
+        {
+            speedPanel = new GameObject("SpeedHud", typeof(RectTransform));
+            speedPanel.transform.SetParent(parent, false);
+            RacingTheme.Stretch((RectTransform)speedPanel.transform);
+
+            // Bottom-left: KM/H + gear. Always visible while driving, race or not.
+            var speedFrame = RacingTheme.CreateFramedPanel("SpeedCard", speedPanel.transform, RacingTheme.Panel, out var speedContent);
+            RacingTheme.PlaceBottomLeft(speedFrame, 40f, 40f, 460f, 210f);
+            var speedLabel = RacingTheme.CreateLabel("Label", speedContent, "KM/H", 20f, RacingTheme.SemiBold, RacingTheme.Neutral700, 3f, TextAlignmentOptions.TopLeft);
+            RacingTheme.PlaceTopLeft((RectTransform)speedLabel.transform, 24f, 16f, 200f, 26f);
+            speedText = RacingTheme.CreateLabel("Speed", speedContent, "0", 130f, RacingTheme.ExtraBold, RacingTheme.Ink, 0f, TextAlignmentOptions.BottomLeft);
+            RacingTheme.PlaceBottomLeft((RectTransform)speedText.transform, 24f, 20f, 280f, 140f);
+            var gearFrame = RacingTheme.CreateImage("GearBadge", speedContent, RacingTheme.Ink, out _);
+            RacingTheme.PlaceBottomRight(gearFrame, 24f, 24f, 100f, 90f);
+            var gearFill = RacingTheme.CreateImage("Fill", gearFrame, RacingTheme.Accent, out _);
+            RacingTheme.Stretch(gearFill, 2, 2, 2, 2);
+            gearText = RacingTheme.CreateLabel("Gear", gearFill, "1", 52f, RacingTheme.ExtraBold, RacingTheme.Panel, 0f, TextAlignmentOptions.Center);
+            RacingTheme.Stretch((RectTransform)gearText.transform);
         }
 
         void BuildCountdown(Transform parent)
@@ -296,20 +350,6 @@ namespace Racing.UI
             hudPanel.transform.SetParent(parent, false);
             RacingTheme.Stretch((RectTransform)hudPanel.transform);
 
-            // Bottom-left: KM/H + gear.
-            var speedFrame = RacingTheme.CreateFramedPanel("SpeedCard", hudPanel.transform, RacingTheme.Panel, out var speedContent);
-            RacingTheme.PlaceBottomLeft(speedFrame, 40f, 40f, 460f, 210f);
-            var speedLabel = RacingTheme.CreateLabel("Label", speedContent, "KM/H", 20f, RacingTheme.SemiBold, RacingTheme.Neutral700, 3f, TextAlignmentOptions.TopLeft);
-            RacingTheme.PlaceTopLeft((RectTransform)speedLabel.transform, 24f, 16f, 200f, 26f);
-            speedText = RacingTheme.CreateLabel("Speed", speedContent, "0", 130f, RacingTheme.ExtraBold, RacingTheme.Ink, 0f, TextAlignmentOptions.BottomLeft);
-            RacingTheme.PlaceBottomLeft((RectTransform)speedText.transform, 24f, 20f, 280f, 140f);
-            var gearFrame = RacingTheme.CreateImage("GearBadge", speedContent, RacingTheme.Ink, out _);
-            RacingTheme.PlaceBottomRight(gearFrame, 24f, 24f, 100f, 90f);
-            var gearFill = RacingTheme.CreateImage("Fill", gearFrame, RacingTheme.Accent, out _);
-            RacingTheme.Stretch(gearFill, 2, 2, 2, 2);
-            gearText = RacingTheme.CreateLabel("Gear", gearFill, "1", 52f, RacingTheme.ExtraBold, RacingTheme.Panel, 0f, TextAlignmentOptions.Center);
-            RacingTheme.Stretch((RectTransform)gearText.transform);
-
             // Top-left: position.
             var posFrame = RacingTheme.CreateImage("PositionCard", hudPanel.transform, RacingTheme.Ink, out _);
             RacingTheme.PlaceTopLeft(posFrame, 64f, 64f, 300f, 130f);
@@ -318,9 +358,9 @@ namespace Racing.UI
             positionOfText = RacingTheme.CreateLabel("Of", posFrame, "/ 1", 26f, RacingTheme.SemiBold, RacingTheme.OnInkMuted, 0f, TextAlignmentOptions.BottomLeft);
             RacingTheme.PlaceBottomLeft((RectTransform)positionOfText.transform, 190f, 26f, 100f, 40f);
 
-            // Bottom-right: course + remaining distance + progress bar.
+            // Bottom-right, stacked above the (always-on) minimap: course + remaining + progress bar.
             var progFrame = RacingTheme.CreateFramedPanel("ProgressCard", hudPanel.transform, RacingTheme.Panel, out var progContent);
-            RacingTheme.PlaceBottomRight(progFrame, 64f, 64f, 420f, 150f);
+            RacingTheme.PlaceBottomRight(progFrame, 64f, 260f, 420f, 150f);
             courseTitleText = RacingTheme.CreateLabel("Course", progContent, "", 20f, RacingTheme.SemiBold, RacingTheme.Neutral700, 3f, TextAlignmentOptions.TopLeft);
             RacingTheme.PlaceTopLeft((RectTransform)courseTitleText.transform, 22f, 18f, 220f, 26f);
             remainText = RacingTheme.CreateLabel("Remain", progContent, "0 M", 22f, RacingTheme.ExtraBold, RacingTheme.Accent, 0f, TextAlignmentOptions.TopRight);
@@ -362,6 +402,13 @@ namespace Racing.UI
             rowsRt.offsetMin = new Vector2(56f, rowsRt.offsetMin.y);
             rowsRt.offsetMax = new Vector2(-56f, rowsRt.offsetMax.y);
             resultsRowsParent = rowsRt;
+
+            // Sits in the gap between the rows and the footer -- blank on a DNF.
+            var rewardStrip = new GameObject("RewardStrip", typeof(RectTransform));
+            rewardStrip.transform.SetParent(resultsPanel.transform, false);
+            RacingTheme.PlaceBottomStrip((RectTransform)rewardStrip.transform, 132f, 50f);
+            rewardText = RacingTheme.CreateLabel("Reward", rewardStrip.transform, "", 24f, RacingTheme.ExtraBold, RacingTheme.Accent, 1f, TextAlignmentOptions.MidlineLeft);
+            RacingTheme.Stretch((RectTransform)rewardText.transform, 56f, 0f, 56f, 0f);
 
             var footer = RacingTheme.CreateImage("Footer", resultsPanel.transform, RacingTheme.Panel, out _);
             RacingTheme.PlaceBottomStrip(footer, 0f, 130f);
