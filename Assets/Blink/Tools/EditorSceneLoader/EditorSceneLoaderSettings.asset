@@ -13,5 +13,9 @@ MonoBehaviour:
   m_Name: EditorSceneLoaderSettings
   m_EditorClassIdentifier: Assembly-CSharp-Editor::Blink.ThirdParty.EditorSceneLoader.EditorSceneLoaderSettings
   sceneEntries:
-  - displayName: TestScene
+  - displayName: DriveScene
     scene: {fileID: 102900000, guid: 99c9720ab356a0642a771bea13969a05, type: 3}
+  - displayName: GarageScene
+    scene: {fileID: 102900000, guid: d14c8cb32f92b864ea3b775f00f03470, type: 3}
+  - displayName: ShopScene
+    scene: {fileID: 102900000, guid: 3e16fac04ac96fd44a820df30e472d9f, type: 3}

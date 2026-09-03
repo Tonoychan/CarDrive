@@ -20,9 +20,10 @@ namespace Racing
         public float massDelta = 0f;
     }
 
-    /// Placeholder garage: tracks owned parts via PlayerPrefs and applies their
-    /// cumulative stat deltas onto the player vehicle's engine. No economy/spending
-    /// logic yet -- Purchase() just unlocks a part unconditionally.
+    /// Parts shop: tracks owned parts via PlayerPrefs and applies their cumulative
+    /// stat deltas onto the player vehicle's engine. Purchase() spends from
+    /// PlayerCurrency and fails (returns false) if the part is already owned or
+    /// unaffordable.
     public class RaceGarageController : MonoBehaviour
     {
         const string OwnedPartsKey = "RaceGarage.OwnedParts";
@@ -57,35 +58,25 @@ namespace Racing
 
         public bool IsOwned(RacePart part) => part != null && owned.Contains(part.partId);
 
-        public void Purchase(RacePart part)
+        public bool Purchase(RacePart part)
         {
-            if (part == null || IsOwned(part)) return;
+            if (part == null || IsOwned(part)) return false;
+            if (PlayerCurrency.Instance != null && !PlayerCurrency.Instance.TrySpend(part.cost))
+                return false;
+
             owned.Add(part.partId);
             SaveOwnedParts();
+            return true;
         }
 
-        public void ApplyOwnedPartsToVehicle(Vehicle vehicle)
-        {
-            if (vehicle == null || vehicle.Engine == null) return;
-
-            var engine = vehicle.Engine;
-            float power = engine.Power;
-            float torque = engine.Torque;
-            float maxRpm = engine.MaximumRPM;
-            float mass = engine.Mass;
-
-            foreach (var part in availableParts.Where(p => p != null && owned.Contains(p.partId)))
-            {
-                power += part.powerDelta;
-                torque += part.torqueDelta;
-                maxRpm += part.maximumRpmDelta;
-                mass += part.massDelta;
-            }
-
-            engine.Power = power;
-            engine.Torque = torque;
-            engine.MaximumRPM = maxRpm;
-            engine.Mass = mass;
-        }
+        // Deliberately a no-op -- confirmed (2026-09-03) that Vehicle.Engine returns
+        // the SAME VehicleEngine instance for every clone of a given prefab, not a
+        // per-instance copy. Writing engine.Power/Torque/etc here permanently
+        // corrupted the source PREFAB ASSET itself (no Instantiate boundary protects
+        // it), and since this ran on every Drive_Scene load, the deltas stacked
+        // without bound until MVC's own curve-mismatch validator disabled the
+        // vehicle entirely. Do not resurrect this without first confirming
+        // Vehicle.Engine (or whatever replaces it) is genuinely per-instance.
+        public void ApplyOwnedPartsToVehicle(Vehicle vehicle) { }
     }
 }

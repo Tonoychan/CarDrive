@@ -16,8 +16,10 @@ namespace Racing
         public RaceState State { get; private set; } = RaceState.Idle;
 
         RaceCourse activeCourse;
+        RaceCourse lastCourse;
         readonly List<RaceParticipant> participants = new List<RaceParticipant>();
         float countdownRemaining;
+        float raceStartTime;
 
         class RaceParticipant
         {
@@ -31,6 +33,12 @@ namespace Racing
             public float finishTime;
             public int progressIndex;
             public int position;
+            public int lapsCompleted;
+            /// Whether this participant was inside the finish-line radius as of the
+            /// last check. A lap only counts on the false->true transition, so sitting
+            /// in the zone (or starting the race there, on a circuit where grid ==
+            /// start/finish) doesn't rack up free laps.
+            public bool inFinishZone;
         }
 
         void Awake()
@@ -43,10 +51,27 @@ namespace Racing
             if (State != RaceState.Idle || course == null) return;
 
             activeCourse = course;
+            lastCourse = course;
             SetupParticipants();
             countdownRemaining = course.definition != null ? course.definition.countdownSeconds : 3f;
             State = RaceState.Countdown;
             RaceEvents.RaiseCountdownStarted(countdownRemaining);
+
+            string courseName = course.definition != null && !string.IsNullOrEmpty(course.definition.raceName)
+                ? course.definition.raceName : course.name;
+            int opponentCount = course.definition != null ? course.definition.opponentCount : 0;
+            RaceEvents.RaiseRaceInfo(courseName, opponentCount);
+        }
+
+        /// Re-runs the race just finished/abandoned, same as walking up to the trigger
+        /// again -- the results screen's "RACE AGAIN" button. Escape/"CLOSE" on the
+        /// results screen uses ResetToIdle() instead and does NOT call this, so the two
+        /// stay distinct: close-to-idle vs. actually restart.
+        public void RaceAgain()
+        {
+            if (lastCourse == null) return;
+            if (State != RaceState.Idle) ResetToIdle();
+            BeginRace(lastCourse);
         }
 
         void SetupParticipants()
@@ -87,7 +112,8 @@ namespace Racing
                     rigidbody = rb,
                     isPlayer = true,
                     gridPosition = slots[0].position,
-                    gridRotation = slots[0].rotation
+                    gridRotation = slots[0].rotation,
+                    inFinishZone = IsInFinishZone(slots[0].position)
                 });
             }
 
@@ -133,9 +159,17 @@ namespace Racing
                     aiFollower = follower,
                     isPlayer = false,
                     gridPosition = slot.position,
-                    gridRotation = slot.rotation
+                    gridRotation = slot.rotation,
+                    inFinishZone = IsInFinishZone(slot.position)
                 });
             }
+        }
+
+        bool IsInFinishZone(Vector3 worldPosition)
+        {
+            if (activeCourse.finishLine == null) return false;
+            float radiusSqr = activeCourse.finishLineRadius * activeCourse.finishLineRadius;
+            return (worldPosition - activeCourse.finishLine.position).sqrMagnitude <= radiusSqr;
         }
 
         SimpleAIPath ChoosePathForOpponent(int opponentIndex)
@@ -145,17 +179,16 @@ namespace Racing
             return all[opponentIndex % all.Count];
         }
 
-        static void ApplyEnginePreset(Vehicle vehicle, RaceOpponentPreset preset)
-        {
-            if (!preset.overrideEngine) return;
-            var engine = vehicle.Engine;
-            if (engine == null) return;
-            engine.Power = preset.power;
-            engine.Torque = preset.torque;
-            engine.MaximumRPM = preset.maximumRPM;
-            engine.RedlineRPM = preset.redlineRPM;
-            engine.Mass = preset.mass;
-        }
+        // NOT applying preset.power/torque/etc to vehicle.Engine anymore -- confirmed
+        // (2026-09-03) that Vehicle.Engine returns the SAME VehicleEngine instance for
+        // every clone of a given prefab, not a per-instance copy. Writing to it here
+        // permanently corrupted the source PREFAB ASSET (power/torque climbing without
+        // bound across repeated races, eventually tripping MVC's own curve-mismatch
+        // validator and disabling the vehicle -- including for the PLAYER's car, if an
+        // opponent preset shares a prefab with the roster). Opponent stat variety needs
+        // a redesign that doesn't write through this shared reference -- e.g. a
+        // per-clone-safe override on our own AI follower, not MVC's Engine object.
+        static void ApplyEnginePreset(Vehicle vehicle, RaceOpponentPreset preset) { }
 
         void Update()
         {
@@ -196,13 +229,23 @@ namespace Racing
             if (countdownRemaining <= 0f)
             {
                 State = RaceState.Racing;
+                raceStartTime = Time.time;
                 foreach (var p in participants)
                 {
-                    if (p.vehicle != null) p.vehicle.enabled = true;
+                    // Only the player's Vehicle component gets re-enabled -- AI cars are
+                    // deliberately spawned with it disabled (see SetupParticipants) so
+                    // MVC's own engine/stability/ABS simulation doesn't fight
+                    // SimpleAIPathFollower for control of the same Rigidbody. Enabling it
+                    // here for AI too was undoing that and fighting our AI driver for the
+                    // whole race.
+                    if (p.vehicle != null && p.isPlayer) p.vehicle.enabled = true;
                     if (p.rigidbody != null) p.rigidbody.isKinematic = false;
                     if (p.aiFollower != null) p.aiFollower.canDrive = true;
                 }
                 RaceEvents.RaiseRaceStarted();
+
+                int totalLaps = activeCourse.definition != null ? Mathf.Max(1, activeCourse.definition.laps) : 1;
+                RaceEvents.RaiseLapChanged(1, totalLaps);
             }
         }
 
@@ -219,7 +262,9 @@ namespace Racing
 
             var ordered = participants
                 .Where(p => p.vehicle != null)
-                .OrderByDescending(p => p.finished ? int.MaxValue : p.progressIndex)
+                .OrderByDescending(p => p.finished)
+                .ThenByDescending(p => p.lapsCompleted)
+                .ThenByDescending(p => p.progressIndex)
                 .ThenBy(p => p.finished ? p.finishTime : 0f)
                 .ToList();
 
@@ -228,28 +273,60 @@ namespace Racing
 
             var playerParticipant = participants.FirstOrDefault(p => p.isPlayer);
             if (playerParticipant != null)
+            {
                 RaceEvents.RaisePositionChanged(playerParticipant.position, ordered.Count);
+
+                // Waypoint-index-based fraction -- same approximation progressIndex
+                // already uses for position ordering above, just normalized to 0-1.
+                int lastIndex = Mathf.Max(1, path.PointCount - 1);
+                float fraction = Mathf.Clamp01((float)playerParticipant.progressIndex / lastIndex);
+                float remainingMeters = path.TotalLength * (1f - fraction);
+                RaceEvents.RaiseProgressChanged(remainingMeters, fraction);
+            }
         }
 
         void CheckFinishes()
         {
             if (activeCourse.finishLine == null) return;
 
-            float radiusSqr = activeCourse.finishLineRadius * activeCourse.finishLineRadius;
+            int totalLaps = activeCourse.definition != null ? Mathf.Max(1, activeCourse.definition.laps) : 1;
+
             foreach (var p in participants)
             {
                 if (p.finished || p.vehicle == null) continue;
 
-                float distSqr = (p.vehicle.transform.position - activeCourse.finishLine.position).sqrMagnitude;
-                if (distSqr > radiusSqr) continue;
-
-                p.finished = true;
-                p.finishTime = Time.time;
-                if (p.isPlayer) RaceEvents.RaisePlayerFinished(p.position);
+                bool inZone = IsInFinishZone(p.vehicle.transform.position);
+                if (inZone && !p.inFinishZone)
+                {
+                    p.lapsCompleted++;
+                    if (p.lapsCompleted >= totalLaps)
+                    {
+                        p.finished = true;
+                        p.finishTime = Time.time;
+                        // AI cars have no reason to keep circulating once they've
+                        // finished -- canDrive=false brakes them to a stop instead of
+                        // looping the circuit forever on their last waypoint.
+                        if (p.aiFollower != null) p.aiFollower.canDrive = false;
+                        if (p.isPlayer) RaceEvents.RaisePlayerFinished(p.position);
+                    }
+                    else if (p.isPlayer)
+                    {
+                        RaceEvents.RaiseLapChanged(p.lapsCompleted + 1, totalLaps);
+                    }
+                }
+                p.inFinishZone = inZone;
             }
 
             if (participants.Count > 0 && participants.All(p => p.vehicle == null || p.finished))
                 FinishRace();
+        }
+
+        /// Instantiate() always appends "(Clone)"; AI variants carry a " - AI"/" - Drift"
+        /// suffix that reads better as "· AI" in the results list.
+        static string CleanVehicleName(string raw)
+        {
+            string s = raw.Replace("(Clone)", "").Trim();
+            return s.Replace(" - AI", " · AI").Replace(" - Drift", " · Drift").Replace(" - Empty", "");
         }
 
         void FinishRace()
@@ -260,9 +337,10 @@ namespace Racing
                 .OrderBy(p => p.position)
                 .Select(p => new RaceResult
                 {
-                    participantName = p.isPlayer ? "Player" : p.vehicle.name,
+                    participantName = p.isPlayer ? "You" : CleanVehicleName(p.vehicle.name),
                     position = p.position,
-                    isPlayer = p.isPlayer
+                    isPlayer = p.isPlayer,
+                    elapsedSeconds = p.finished ? p.finishTime - raceStartTime : Time.time - raceStartTime
                 })
                 .ToArray();
             RaceEvents.RaiseRaceFinished(results);

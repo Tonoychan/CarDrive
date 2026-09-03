@@ -1,7 +1,3 @@
-using UnityEngine;
-using MVC.Core;
-using Racing.UI;
-
 namespace Racing
 {
     /// Lives on its own GameObject (typically a child of the RaceCourse, e.g.
@@ -10,88 +6,42 @@ namespace Racing
     /// to be placed/sized independently of the course's root object while the whole
     /// race (course data, path, opponent presets, trigger) still ships as one
     /// self-contained prefab.
-    [RequireComponent(typeof(Collider))]
-    public class RaceTrigger : MonoBehaviour
+    public class RaceTrigger : WorldPromptTrigger
     {
-        public string promptLabel = "Start Race";
-
-        [Tooltip("How long the player must stay inside the trigger before the start " +
-                 "popup appears.")]
-        [Min(0f)] public float hoverSecondsToPrompt = 1.5f;
-
-        [Tooltip("Master gate for this trigger -- set false to disable it entirely " +
-                 "(e.g. from a progression/unlock system) without touching the " +
-                 "GameObject's active state.")]
-        public bool isEnabled = true;
-
         public RaceCourse Course { get; private set; }
-
-        Vehicle playerInTrigger;
-        float hoverTimer;
-        bool promptShown;
 
         void Awake()
         {
             Course = GetComponentInParent<RaceCourse>();
         }
 
-        void Reset()
+        public override string PromptLabel
         {
-            var col = GetComponent<Collider>();
-            col.isTrigger = true;
-        }
-
-        void OnTriggerEnter(Collider other)
-        {
-            if (!isEnabled) return;
-            if (RaceManager.Instance != null && RaceManager.Instance.State != RaceState.Idle) return;
-
-            var vehicle = other.GetComponentInParent<Vehicle>();
-            if (vehicle == null || vehicle.HasAI) return;
-
-            playerInTrigger = vehicle;
-            hoverTimer = 0f;
-            promptShown = false;
-        }
-
-        void Update()
-        {
-            if (!isEnabled || playerInTrigger == null || promptShown) return;
-
-            hoverTimer += Time.deltaTime;
-            if (hoverTimer >= hoverSecondsToPrompt)
+            get
             {
-                promptShown = true;
-                RacePromptUI.Instance?.Show(this);
+                var def = Course != null ? Course.definition : null;
+                return def != null && !string.IsNullOrEmpty(def.raceName) ? def.raceName : promptLabel;
             }
         }
 
-        void OnTriggerExit(Collider other)
+        public override string PromptDetails
         {
-            var vehicle = other.GetComponentInParent<Vehicle>();
-            if (vehicle == null || vehicle != playerInTrigger) return;
-
-            playerInTrigger = null;
-            hoverTimer = 0f;
-            if (promptShown)
+            get
             {
-                promptShown = false;
-                RacePromptUI.Instance?.Hide(this);
+                var def = Course != null ? Course.definition : null;
+                int opponents = def != null ? def.opponentCount : 0;
+                float countdown = def != null ? def.countdownSeconds : 3f;
+                string desc = def != null && !string.IsNullOrEmpty(def.description) ? def.description + "\n\n" : "";
+                return $"{desc}{opponents} opponent{(opponents == 1 ? "" : "s")} - {countdown:0}s countdown";
             }
         }
 
-        public void Confirm()
+        public override string TriggerKind => "RACE TRIGGER";
+
+        protected override void OnConfirmed()
         {
             if (Course == null || RaceManager.Instance == null) return;
             RaceManager.Instance.BeginRace(Course);
-            promptShown = false;
-            RacePromptUI.Instance?.Hide(this);
-        }
-
-        public void Cancel()
-        {
-            promptShown = false;
-            RacePromptUI.Instance?.Hide(this);
         }
     }
 }

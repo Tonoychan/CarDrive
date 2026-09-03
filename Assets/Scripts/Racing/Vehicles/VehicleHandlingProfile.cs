@@ -36,6 +36,25 @@ namespace Racing.Vehicles
         // no-ops instead of reaching the real vehicle, so it's tuned via the MVC
         // Vehicle inspector directly (Stability foldout) rather than through here.
 
+        [Header("Rolling Drag")]
+        [Tooltip("MVC's own managed linear drag (Stability.Drag) -- separate from the " +
+                 "Rigidbody's own (unused, stays 0) linearDamping. Raising this bleeds " +
+                 "off the automatic transmission's idle creep faster once the engine " +
+                 "isn't actively pushing, without meaningfully touching top speed since " +
+                 "the engine's drive force dominates at speed. MVC's own default is " +
+                 "~0.018; this keeps creep but stops it rolling forever.")]
+        [Min(0f)] public float rollingDrag = 0.08f;
+
+        [Header("Creep Cutoff")]
+        [Tooltip("Below this forward speed (m/s), with the fuel/brake pedals both " +
+                 "released, residual idle creep is killed outright instead of left to " +
+                 "rollingDrag. Linear drag only ever pulls a constant idle-creep force " +
+                 "down toward a small nonzero equilibrium speed -- it asymptotically " +
+                 "approaches that floor but mathematically never reaches true zero, " +
+                 "which is why the car kept crawling even with drag applied. This just " +
+                 "clamps that last sliver to zero once it's already nearly stopped.")]
+        [Min(0f)] public float creepCutoffSpeed = 0.35f;
+
         [Header("High-Speed Steering")]
         [Tooltip("Smooths how fast the steering angle catches up to your input at " +
                  "speed, so a quick tap doesn't snap the car sideways. 0 = instant " +
@@ -52,10 +71,12 @@ namespace Racing.Vehicles
         [Range(1f, 45f)] public float maximumSteerAngle = 20f;
 
         Vehicle vehicle;
+        Rigidbody rb;
 
         void Awake()
         {
             vehicle = GetComponent<Vehicle>();
+            rb = GetComponent<Rigidbody>();
             Apply();
         }
 
@@ -67,12 +88,22 @@ namespace Racing.Vehicles
                 Apply();
         }
 
+        void FixedUpdate()
+        {
+            if (vehicle == null || rb == null || creepCutoffSpeed <= 0f) return;
+            if (vehicle.Inputs.FuelPedal > 0.05f || vehicle.Inputs.BrakePedal > 0.05f) return;
+
+            if (rb.linearVelocity.sqrMagnitude > 0f && rb.linearVelocity.magnitude < creepCutoffSpeed)
+                rb.linearVelocity = Vector3.zero;
+        }
+
         public void Apply()
         {
             var stability = vehicle.Stability;
             stability.ArcadeAngularSteerHelperIntensity = driftResistance;
             stability.AntiSwayRear = rearAntiSwayStiffness;
             stability.ESPStrength = espStrength;
+            stability.Drag = rollingDrag;
 
             var steering = vehicle.Steering;
             steering.UseDynamicSteering = highSpeedSteeringSmoothing > 0f;

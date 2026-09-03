@@ -16,6 +16,13 @@ namespace Racing
         [Header("Countdown")]
         [Min(0f)] public float countdownSeconds = 3f;
 
+        [Header("Laps")]
+        [Tooltip("How many times a participant must cross the finish line to finish. " +
+                 "1 = point-to-point/sprint race (finish line reached once). For a " +
+                 "circuit course, set this higher and make sure the course's looped " +
+                 "SimpleAIPath wraps back to waypoint 0 so AI keeps circulating.")]
+        [Min(1)] public int laps = 1;
+
         public RaceOpponentPreset GetOpponentPreset(int opponentIndex)
         {
             if (opponentPresets == null || opponentPresets.Length == 0)
