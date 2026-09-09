@@ -43,8 +43,8 @@ PlayerSettings:
   m_VirtualRealitySplashScreen: {fileID: 0}
   defaultScreenWidth: 1024
   defaultScreenHeight: 768
-  defaultScreenWidthWeb: 960
-  defaultScreenHeightWeb: 600
+  defaultScreenWidthWeb: 1920
+  defaultScreenHeightWeb: 1080
   m_StereoRenderingPath: 0
   m_ActiveColorSpace: 1
   unsupportedMSAAFallback: 0
@@ -87,7 +87,7 @@ PlayerSettings:
   androidApplicationEntry: 2
   defaultIsNativeResolution: 1
   macRetinaSupport: 1
-  runInBackground: 0
+  runInBackground: 1
   muteOtherAudioSources: 0
   Prepare IOS For Recording: 0
   Force IOS Speakers When Recording: 0
@@ -846,7 +846,7 @@ PlayerSettings:
     Server: UNITY_MCP_READY;UNITY_MCP_DEPS_3
     Standalone: UNITY_POST_PROCESSING_STACK_V2;MVC_COMMUNITY;UNITY_MCP_READY;UNITY_MCP_DEPS_3
     VisionOS: UNITY_POST_PROCESSING_STACK_V2;UNITY_MCP_READY;UNITY_MCP_DEPS_3
-    WebGL: UNITY_POST_PROCESSING_STACK_V2;UNITY_MCP_READY;UNITY_MCP_DEPS_3
+    WebGL: UNITY_POST_PROCESSING_STACK_V2;MVC_COMMUNITY;UNITY_MCP_READY;UNITY_MCP_DEPS_3
     Windows Store Apps: UNITY_MCP_READY;UNITY_MCP_DEPS_3
     XboxOne: UNITY_POST_PROCESSING_STACK_V2;UNITY_MCP_READY;UNITY_MCP_DEPS_3
     iPhone: UNITY_MCP_READY;UNITY_MCP_DEPS_3

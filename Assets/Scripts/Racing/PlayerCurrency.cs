@@ -40,6 +40,15 @@ namespace Racing
             Save();
         }
 
+        /// Wipes the saved balance back to an exact amount (0 for the debug reset
+        /// shortcut) rather than falling back to startingBalance like a missing save
+        /// would.
+        public void ResetBalance(int newBalance = 0)
+        {
+            Balance = newBalance;
+            Save();
+        }
+
         void Save()
         {
             PlayerPrefs.SetInt(BalanceKey, Balance);

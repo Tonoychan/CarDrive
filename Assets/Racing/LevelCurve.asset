@@ -13,5 +13,5 @@ MonoBehaviour:
   m_Name: LevelCurve
   m_EditorClassIdentifier: Assembly-CSharp::Racing.LevelCurve
   baseXP: 100
-  growthRate: 1.15
+  growthRate: 1
   maxLevel: 999

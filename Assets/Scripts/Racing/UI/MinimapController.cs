@@ -26,6 +26,13 @@ namespace Racing.UI
         [SerializeField] float lookAheadDistance = 30f;
         [SerializeField] float routeHeight = 0.3f;
 
+        // The minimap is a second full-scene render every frame it fires -- measured
+        // ~9ms/frame extra during a race (4 opponents), roughly halving framerate.
+        // Rendering it manually at a reduced cadence instead of every Update is
+        // imperceptible for a small rotating minimap and removes most of that cost.
+        const int RenderEveryNFrames = 3;
+        int frameCounter;
+
         Transform player;
         bool mainCameraFixed;
         LineRenderer routeLine;
@@ -34,6 +41,9 @@ namespace Racing.UI
         void Awake()
         {
             BuildRouteLine();
+            // Camera.Render() is called manually below instead of relying on Unity's
+            // automatic per-frame camera render.
+            if (minimapCamera != null) minimapCamera.enabled = false;
         }
 
         void BuildRouteLine()
@@ -87,7 +97,11 @@ namespace Racing.UI
                 minimapCamera.transform.LookAt(pos + forward * lookAheadDistance + Vector3.up * 1.5f);
             }
 
+            frameCounter++;
+            if (frameCounter % RenderEveryNFrames != 0) return;
+
             UpdateRoutePath(pos);
+            if (minimapCamera != null) minimapCamera.Render();
         }
 
         void UpdateRoutePath(Vector3 playerPos)

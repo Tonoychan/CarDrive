@@ -64,7 +64,9 @@ namespace Racing.UI
             bool isDrive = sceneName == SceneFlow.Drive;
             ruleLoader.SetActive(!isDrive);
             posterLoader.SetActive(isDrive);
-            if (!isDrive) ruleDestText.text = sceneName.Replace("_Scene", "").ToUpperInvariant() + "_SCENE";
+            if (!isDrive) ruleDestText.text = sceneName == SceneFlow.MainMenu
+                ? "MAIN MENU"
+                : sceneName.Replace("_Scene", "").ToUpperInvariant() + "_SCENE";
             else posterDestText.text = "DRIVE\nSCENE";
 
             SetFill(0f);

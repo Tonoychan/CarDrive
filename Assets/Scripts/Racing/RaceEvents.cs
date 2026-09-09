@@ -26,6 +26,10 @@ namespace Racing
         /// race (not on a DNF) -- lets the results screen show what was earned without
         /// reaching back into PlayerProgress/PlayerCurrency itself.
         public static event Action<RaceReward> RewardGranted;
+        /// Raised by RaceManager.ResetToIdle() -- the "truly back to idle, no next race
+        /// queued" moment (unlike RaceAgain(), which goes straight back to Countdown).
+        /// RaceSelectUI uses this to reappear after a Quick Race/Multiplayer run ends.
+        public static event Action RaceReset;
 
         public static void RaiseCountdownStarted(float seconds) => CountdownStarted?.Invoke(seconds);
         public static void RaiseRaceInfo(string courseName, int opponentCount) => RaceInfo?.Invoke(courseName, opponentCount);
@@ -37,6 +41,7 @@ namespace Racing
         public static void RaisePlayerFinished(int finishPosition) => PlayerFinished?.Invoke(finishPosition);
         public static void RaiseRaceFinished(RaceResult[] results) => RaceFinished?.Invoke(results);
         public static void RaiseRewardGranted(RaceReward reward) => RewardGranted?.Invoke(reward);
+        public static void RaiseRaceReset() => RaceReset?.Invoke();
     }
 
     public struct RaceResult

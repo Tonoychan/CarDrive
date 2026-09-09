@@ -17,7 +17,7 @@ MonoBehaviour:
   description: A quick 2 circuit through the city.
   requiredLevel: 1
   baseXPReward: 100
-  baseCoinReward: 150
+  baseCoinReward: 1000
   repeatRewardMultiplier: 0.5
   opponentCount: 3
   opponentPresets:

@@ -19,3 +19,5 @@ MonoBehaviour:
     scene: {fileID: 102900000, guid: d14c8cb32f92b864ea3b775f00f03470, type: 3}
   - displayName: ShopScene
     scene: {fileID: 102900000, guid: 3e16fac04ac96fd44a820df30e472d9f, type: 3}
+  - displayName: Start Scene
+    scene: {fileID: 102900000, guid: c0782224a254f9a4baf3749be52ad7c7, type: 3}

@@ -18,6 +18,10 @@ namespace Racing.UI
         public static readonly Color Accent = new Color32(0xec, 0x30, 0x13, 0xff);
         public static readonly Color AccentHover = new Color32(0xc8, 0x25, 0x0d, 0xff);
         public static readonly Color AccentSoft = new Color32(0xf9, 0xd5, 0xcf, 0xff);
+        /// Completed-race indicator (world-space race info cards) -- keeps the same
+        /// ink/off-white/accent language, just swaps the accent for green so a
+        /// glance at the card tells you first-clear-done vs. not-yet without reading.
+        public static readonly Color Success = new Color32(0x2e, 0x7d, 0x32, 0xff);
         public static readonly Color Neutral300 = new Color32(0xd6, 0xd3, 0xce, 0xff);
         public static readonly Color Neutral500 = new Color32(0x9b, 0x97, 0x95, 0xff);
         public static readonly Color Neutral600 = new Color32(0x7b, 0x78, 0x76, 0xff);

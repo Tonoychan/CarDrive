@@ -26,6 +26,9 @@ namespace Racing.UI
         [SerializeField] TMP_Text speedText, gearText, positionText, positionOfText, courseTitleText, remainText;
         [SerializeField] RectTransform progressFill;
 
+        // Level (always visible, not race-gated)
+        [SerializeField] TMP_Text levelText;
+
         // Results
         [SerializeField] TMP_Text resultsHeaderText, resultsTimeText, rewardText;
         [SerializeField] Transform resultsRowsParent;
@@ -34,6 +37,10 @@ namespace Racing.UI
         string courseName = "RACE";
         int opponentCount;
         bool resultsShowing;
+        /// >1 while racing a circuit -- swaps the progress card's text readout from
+        /// "meters remaining" to "LAP x/y". Reset to 1 by OnLapChanged(1, totalLaps) at
+        /// the start of every race, so a sprint after a circuit doesn't inherit this.
+        int circuitTotalLaps = 1;
 
         Vehicle playerVehicle;
         Rigidbody playerRb;
@@ -42,6 +49,15 @@ namespace Racing.UI
         void Awake()
         {
             if (raceAgainButton != null) raceAgainButton.onClick.AddListener(() => RaceManager.Instance?.RaceAgain());
+        }
+
+        void Start()
+        {
+            // Subscribing here rather than OnEnable(): Start() runs only after every
+            // Awake() in the scene has completed, so PlayerProgress.Instance (set in
+            // its own Awake, on a different GameObject) is guaranteed to exist by now.
+            if (PlayerProgress.Instance != null) PlayerProgress.Instance.LevelChanged += OnLevelChanged;
+            RefreshLevelText();
         }
 
         void OnEnable()
@@ -74,6 +90,20 @@ namespace Racing.UI
             RaceEvents.RaceFinished -= OnRaceFinished;
             RaceEvents.RaceInfo -= OnRaceInfo;
             RaceEvents.RewardGranted -= OnRewardGranted;
+        }
+
+        void OnDestroy()
+        {
+            if (PlayerProgress.Instance != null) PlayerProgress.Instance.LevelChanged -= OnLevelChanged;
+        }
+
+        void OnLevelChanged(int newLevel) => RefreshLevelText();
+
+        void RefreshLevelText()
+        {
+            if (levelText == null) return;
+            int level = PlayerProgress.Instance != null ? PlayerProgress.Instance.Level : 1;
+            levelText.text = level.ToString();
         }
 
         void LateUpdate()
@@ -160,13 +190,22 @@ namespace Racing.UI
 
         void OnLapChanged(int currentLap, int totalLaps)
         {
-            // Corner-anchored HUD (2a) has no dedicated lap readout -- lap count only
-            // matters for multi-lap circuits, which this project doesn't currently race.
+            // A circuit's "distance remaining" only ever reflects the CURRENT lap
+            // (progressIndex resets every time it loops), which reads as broken on a
+            // multi-lap course -- swap that readout for a straightforward lap counter
+            // instead. A single-lap sprint (totalLaps<=1) keeps showing meters, updated
+            // by OnProgressChanged below.
+            circuitTotalLaps = totalLaps;
+            if (totalLaps > 1 && remainText != null)
+                remainText.text = $"LAP {currentLap}/{totalLaps}";
         }
 
         void OnProgressChanged(float remainingMeters, float fraction)
         {
-            remainText.text = Mathf.Max(0, Mathf.RoundToInt(remainingMeters)) + " M";
+            if (circuitTotalLaps <= 1)
+                remainText.text = Mathf.Max(0, Mathf.RoundToInt(remainingMeters)) + " M";
+            // The progress bar still tracks within-lap position for a circuit -- only
+            // the text readout above it swaps to the lap counter.
             var anchorMax = progressFill.anchorMax;
             anchorMax.x = Mathf.Clamp01(fraction);
             progressFill.anchorMax = anchorMax;
@@ -321,6 +360,20 @@ namespace Racing.UI
             RacingTheme.Stretch(gearFill, 2, 2, 2, 2);
             gearText = RacingTheme.CreateLabel("Gear", gearFill, "1", 52f, RacingTheme.ExtraBold, RacingTheme.Panel, 0f, TextAlignmentOptions.Center);
             RacingTheme.Stretch((RectTransform)gearText.transform);
+
+            BuildLevelPanel(speedPanel.transform);
+        }
+
+        // Top-right: player level. Always visible while driving, race or not -- same
+        // free-roam-visible group as the speed/gear card.
+        void BuildLevelPanel(Transform parent)
+        {
+            var levelFrame = RacingTheme.CreateFramedPanel("LevelCard", parent, RacingTheme.Panel, out var levelContent);
+            RacingTheme.PlaceTopRight(levelFrame, 40f, 40f, 180f, 110f);
+            var levelLabel = RacingTheme.CreateLabel("Label", levelContent, "LEVEL", 20f, RacingTheme.SemiBold, RacingTheme.Neutral700, 3f, TextAlignmentOptions.TopLeft);
+            RacingTheme.PlaceTopLeft((RectTransform)levelLabel.transform, 20f, 14f, 140f, 26f);
+            levelText = RacingTheme.CreateLabel("Level", levelContent, "1", 60f, RacingTheme.ExtraBold, RacingTheme.Ink, 0f, TextAlignmentOptions.BottomLeft);
+            RacingTheme.PlaceBottomLeft((RectTransform)levelText.transform, 20f, 14f, 140f, 66f);
         }
 
         void BuildCountdown(Transform parent)

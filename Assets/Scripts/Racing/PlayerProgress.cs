@@ -62,6 +62,22 @@ namespace Racing
             }
         }
 
+        /// Wipes saved XP/level and first-clear tracking back to a fresh start (used by
+        /// the debug reset shortcut so the full level 1->10 unlock chain can be replayed
+        /// without manually clearing PlayerPrefs).
+        public void ResetProgress()
+        {
+            XP = 0;
+            PlayerPrefs.SetInt(XPKey, 0);
+            completedRaces.Clear();
+            PlayerPrefs.SetString(CompletedRacesKey, string.Empty);
+            PlayerPrefs.Save();
+
+            Level = levelCurve != null ? levelCurve.LevelForXP(0) : 1;
+            XPChanged?.Invoke(XP);
+            LevelChanged?.Invoke(Level);
+        }
+
         static string RaceKey(RaceDefinition race) =>
             !string.IsNullOrEmpty(race.raceId) ? race.raceId : race.name;
 

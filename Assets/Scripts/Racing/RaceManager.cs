@@ -22,6 +22,11 @@ namespace Racing
         RaceCourse activeCourse;
         RaceCourse lastCourse;
         readonly List<RaceParticipant> participants = new List<RaceParticipant>();
+        /// Deactivated-but-alive opponent instances, keyed by source prefab, reused
+        /// across races instead of Destroy()+Instantiate() every time -- a full car
+        /// (mesh, materials, physics, textures) is expensive to tear down and rebuild,
+        /// especially with several opponents per race.
+        readonly Dictionary<GameObject, Queue<GameObject>> opponentPool = new Dictionary<GameObject, Queue<GameObject>>();
         float countdownRemaining;
         float raceStartTime;
 
@@ -30,6 +35,7 @@ namespace Racing
             public Vehicle vehicle;
             public Rigidbody rigidbody;
             public SimpleAIPathFollower aiFollower;
+            public GameObject sourcePrefab;
             public Vector3 gridPosition;
             public Quaternion gridRotation;
             public bool isPlayer;
@@ -43,6 +49,75 @@ namespace Racing
             /// in the zone (or starting the race there, on a circuit where grid ==
             /// start/finish) doesn't rack up free laps.
             public bool inFinishZone;
+            /// World-space distance actually driven since the last time this
+            /// participant left the finish zone -- reset on every zone entry (counted
+            /// or not). Required to clear a threshold before a false->true zone
+            /// re-entry counts as a completed lap. On a circuit the grid sits close
+            /// enough to double as the finish line (a handful of units away, well
+            /// inside finishLineRadius) that ordinary physics settling right as the
+            /// countdown ends, or a stuck/idling car merely jittering near that same
+            /// spot, can flicker in and out of the zone on its own -- without this
+            /// guard that reads as a free lap for a car that never actually drove one.
+            /// Plain waypoint-index progress isn't reliable enough for this on a small
+            /// loop (closest-waypoint can stay pinned near one corner depending on the
+            /// exact line taken), so this tracks actual driven distance instead.
+            public float distanceSinceZoneExit;
+            public Vector3 lastTrackedPosition;
+        }
+
+        /// Moves both the Transform AND the Rigidbody to the given pose, then forces an
+        /// immediate physics sync. Setting transform.position alone is NOT enough for a
+        /// Rigidbody with interpolation enabled (the norm for a smooth-looking vehicle):
+        /// Unity renders interpolated bodies from the physics engine's own buffered
+        /// position, not straight off the Transform, so the visible car can keep
+        /// showing its old spot -- exactly where it was sitting on the trigger -- even
+        /// though transform.position already reads the correct grid slot. Writing
+        /// through Rigidbody.position/rotation too, plus Physics.SyncTransforms(),
+        /// updates that buffer immediately instead of waiting on/hoping for the next
+        /// FixedUpdate to catch up.
+        static void TeleportVehicle(Transform t, Rigidbody rb, Vector3 position, Quaternion rotation)
+        {
+            t.SetPositionAndRotation(position, rotation);
+            if (rb != null)
+            {
+                rb.position = position;
+                rb.rotation = rotation;
+            }
+            Physics.SyncTransforms();
+        }
+
+        GameObject RentOpponent(GameObject prefab, Vector3 position, Quaternion rotation)
+        {
+            if (opponentPool.TryGetValue(prefab, out var queue))
+            {
+                while (queue.Count > 0)
+                {
+                    var pooled = queue.Dequeue();
+                    if (pooled == null) continue; // destroyed some other way -- skip, don't return it
+                    var prb = pooled.GetComponent<Rigidbody>();
+                    TeleportVehicle(pooled.transform, prb, position, rotation);
+                    pooled.SetActive(true);
+                    if (prb != null)
+                    {
+                        prb.linearVelocity = Vector3.zero;
+                        prb.angularVelocity = Vector3.zero;
+                    }
+                    return pooled;
+                }
+            }
+            return Instantiate(prefab, position, rotation);
+        }
+
+        void ReturnOpponent(GameObject prefab, GameObject instance)
+        {
+            if (prefab == null || instance == null) return;
+            instance.SetActive(false);
+            if (!opponentPool.TryGetValue(prefab, out var queue))
+            {
+                queue = new Queue<GameObject>();
+                opponentPool[prefab] = queue;
+            }
+            queue.Enqueue(instance);
         }
 
         void Awake()
@@ -83,7 +158,7 @@ namespace Racing
             foreach (var p in participants)
             {
                 if (!p.isPlayer && p.vehicle != null)
-                    Destroy(p.vehicle.gameObject);
+                    ReturnOpponent(p.sourcePrefab, p.vehicle.gameObject);
             }
             participants.Clear();
 
@@ -91,10 +166,18 @@ namespace Racing
             var player = vm != null ? vm.PlayerVehicle : null;
             var slots = activeCourse.gridSlots;
 
+            if (player == null || slots == null || slots.Length == 0 || slots[0] == null)
+            {
+                Debug.LogWarning($"[RaceManager] Player NOT repositioned for '{activeCourse.name}' -- " +
+                    $"vm={(vm != null)} player={(player != null)} slots={(slots != null ? slots.Length.ToString() : "null")} " +
+                    $"slot0={(slots != null && slots.Length > 0 ? (slots[0] != null ? "ok" : "null") : "n/a")}");
+            }
+
             if (player != null && slots != null && slots.Length > 0 && slots[0] != null)
             {
-                player.transform.SetPositionAndRotation(slots[0].position, slots[0].rotation);
                 var rb = player.GetComponent<Rigidbody>();
+                TeleportVehicle(player.transform, rb, slots[0].position, slots[0].rotation);
+                Debug.Log($"[RaceManager] Player repositioned to grid slot 0 '{slots[0].name}' @ {slots[0].position} (actual transform now @ {player.transform.position})");
                 if (rb != null)
                 {
                     rb.linearVelocity = Vector3.zero;
@@ -117,7 +200,8 @@ namespace Racing
                     isPlayer = true,
                     gridPosition = slots[0].position,
                     gridRotation = slots[0].rotation,
-                    inFinishZone = IsInFinishZone(slots[0].position)
+                    inFinishZone = IsInFinishZone(slots[0].position),
+                    lastTrackedPosition = slots[0].position
                 });
             }
 
@@ -133,7 +217,7 @@ namespace Racing
                     ? slots[slotIndex]
                     : activeCourse.transform;
 
-                var go = Instantiate(preset.vehiclePrefab, slot.position, slot.rotation);
+                var go = RentOpponent(preset.vehiclePrefab, slot.position, slot.rotation);
                 var vehicle = go.GetComponent<Vehicle>();
                 if (vehicle == null)
                 {
@@ -161,10 +245,12 @@ namespace Racing
                     vehicle = vehicle,
                     rigidbody = aiRb,
                     aiFollower = follower,
+                    sourcePrefab = preset.vehiclePrefab,
                     isPlayer = false,
                     gridPosition = slot.position,
                     gridRotation = slot.rotation,
-                    inFinishZone = IsInFinishZone(slot.position)
+                    inFinishZone = IsInFinishZone(slot.position),
+                    lastTrackedPosition = slot.position
                 });
             }
         }
@@ -217,7 +303,7 @@ namespace Racing
             foreach (var p in participants)
             {
                 if (p.vehicle == null) continue;
-                p.vehicle.transform.SetPositionAndRotation(p.gridPosition, p.gridRotation);
+                TeleportVehicle(p.vehicle.transform, p.rigidbody, p.gridPosition, p.gridRotation);
                 // Kinematic rigidbodies ignore velocity entirely -- writing to it just
                 // logs "not supported" warnings every frame, for every car, for the
                 // whole countdown.
@@ -234,6 +320,9 @@ namespace Racing
             {
                 State = RaceState.Racing;
                 raceStartTime = Time.time;
+                var playerAtStart = participants.FirstOrDefault(p => p.isPlayer);
+                if (playerAtStart != null)
+                    Debug.Log($"[RaceManager] Race starting -- player @ {playerAtStart.vehicle.transform.position} (grid was {playerAtStart.gridPosition})");
                 foreach (var p in participants)
                 {
                     // Only the player's Vehicle component gets re-enabled -- AI cars are
@@ -262,6 +351,10 @@ namespace Racing
             {
                 if (p.finished || p.vehicle == null) continue;
                 p.progressIndex = path.ClosestPointIndex(p.vehicle.transform.position);
+
+                Vector3 pos = p.vehicle.transform.position;
+                p.distanceSinceZoneExit += Vector3.Distance(pos, p.lastTrackedPosition);
+                p.lastTrackedPosition = pos;
             }
 
             var ordered = participants
@@ -294,6 +387,12 @@ namespace Racing
             if (activeCourse.finishLine == null) return;
 
             int totalLaps = activeCourse.definition != null ? Mathf.Max(1, activeCourse.definition.laps) : 1;
+            // Require at least 30% of one lap's length actually driven since the last
+            // zone visit before a re-entry counts -- comfortably above anything a
+            // stationary/jittering car could rack up (sub-meter noise vs. tens of
+            // meters), while still tolerant of a car cutting corners tighter than the
+            // nominal racing line.
+            float minLapDistance = activeCourse.mainPath != null ? activeCourse.mainPath.TotalLength * 0.3f : 0f;
 
             foreach (var p in participants)
             {
@@ -302,6 +401,10 @@ namespace Racing
                 bool inZone = IsInFinishZone(p.vehicle.transform.position);
                 if (inZone && !p.inFinishZone)
                 {
+                    bool realLap = p.distanceSinceZoneExit >= minLapDistance;
+                    p.distanceSinceZoneExit = 0f;
+                    if (!realLap) { p.inFinishZone = inZone; continue; }
+
                     p.lapsCompleted++;
                     if (p.lapsCompleted >= totalLaps)
                     {
@@ -357,9 +460,13 @@ namespace Racing
         /// every clear after that pays repeatRewardMultiplier of it (see
         /// RaceDefinition.GetReward). Needs both PlayerProgress and PlayerCurrency in
         /// the scene -- silently skips if either is missing rather than throwing, same
-        /// as every other Instance-optional lookup in this codebase.
+        /// as every other Instance-optional lookup in this codebase. Quick Race/
+        /// Multiplayer (GameMode.BypassesLevelGate) never earns anything -- it's meant
+        /// to be a no-stakes "just race" mode, isolated from Career progression.
         void GrantRewardIfEarned()
         {
+            if (GameMode.BypassesLevelGate) return;
+
             var def = activeCourse != null ? activeCourse.definition : null;
             var playerParticipant = participants.FirstOrDefault(p => p.isPlayer);
             if (def == null || playerParticipant == null || !playerParticipant.finished) return;
@@ -389,7 +496,7 @@ namespace Racing
             {
                 if (!p.isPlayer && p.vehicle != null)
                 {
-                    Destroy(p.vehicle.gameObject);
+                    ReturnOpponent(p.sourcePrefab, p.vehicle.gameObject);
                 }
                 else if (p.isPlayer && p.vehicle != null)
                 {
@@ -400,6 +507,7 @@ namespace Racing
             participants.Clear();
             activeCourse = null;
             State = RaceState.Idle;
+            RaceEvents.RaiseRaceReset();
         }
     }
 }
